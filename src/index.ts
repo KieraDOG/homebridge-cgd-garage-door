@@ -1,11 +1,11 @@
 import { API } from 'homebridge';
 
 import { PLATFORM_NAME } from './settings';
-import { ExampleCameraPlatform } from './platform';
+import { CGDCameraPlatform } from './platform';
 
 /**
  * This method registers the platform with Homebridge
  */
 export = (api: API) => {
-  api.registerPlatform(PLATFORM_NAME, ExampleCameraPlatform);
+  api.registerPlatform(PLATFORM_NAME, CGDCameraPlatform);
 };

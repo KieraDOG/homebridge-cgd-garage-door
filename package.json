@@ -1,20 +1,20 @@
 {
   "private": true,
-  "displayName": "Plugin Name",
-  "name": "homebridge-plugin-name",
+  "displayName": "CGD Camera",
+  "name": "homebridge-cgd-camera",
   "version": "1.0.0",
   "description": "A short description about what your plugin does.",
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "https://github.com/KieraDOG/homebridge-cgd-camera.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/KieraDOG/homebridge-cgd-camera/issues"
   },
-  "author": "Andreas Bauer <mail@anderl-bauer.de>",
+  "author": "Long Zhao <zlong@outlook.com>",
   "engines": {
-    "node": "^18.17.0",
+    "node": "^21.0.0",
     "homebridge": "^1.6.0"
   },
   "main": "dist/index.js",
@@ -28,11 +28,18 @@
     "homebridge-plugin"
   ],
   "dependencies": {
-    "ip": "^1.1.8"
+    "axios-cookiejar-support": "^4.0.7",
+    "ffmpeg-for-homebridge": "^2.1.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "ip": "^1.1.8",
+    "tough-cookie": "^4.1.3",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.23",
     "@types/ip": "^1.1.0",
     "@types/node": "^18.16.20",
+    "@types/tough-cookie": "^4.0.4",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.45.0",

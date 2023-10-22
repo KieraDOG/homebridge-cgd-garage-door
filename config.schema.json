@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "CGDCamera",
   "pluginType": "platform",
   "singular": true,
   "schema": {
@@ -9,7 +9,19 @@
         "title": "Name",
         "type": "string",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "default": "CGD Camera Platform"
+      },
+      "email": {
+        "title": "Email",
+        "type": "string",
+        "required": true,
+        "default": "CGD Login Email"
+      },
+      "password": {
+        "title": "Password",
+        "type": "string",
+        "required": true,
+        "default": "CGD Login Password"
       }
     }
   }

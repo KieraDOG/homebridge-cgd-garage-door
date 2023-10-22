@@ -1,103 +1,100 @@
-import ip from 'ip';
-import {ChildProcess, spawn} from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
+import ffmpegPath from 'ffmpeg-for-homebridge';
 import {
   CameraController,
   CameraStreamingDelegate,
   HAP,
+  Logging,
   PrepareStreamCallback,
   PrepareStreamRequest,
   PrepareStreamResponse,
+  SRTPCryptoSuites,
   SnapshotRequest,
   SnapshotRequestCallback,
-  SRTPCryptoSuites,
-  StreamingRequest,
   StreamRequestCallback,
   StreamRequestTypes,
   StreamSessionIdentifier,
+  StreamingRequest,
   VideoInfo,
 } from 'homebridge';
+import ip from 'ip';
+import { CGDStreaming } from './CGDStreaming';
 
-// disable eslint console log
-/* eslint-disable no-console */
 
 type SessionInfo = {
-  address: string; // address of the HAP controller
+  address: string;
 
   videoPort: number;
-  videoCryptoSuite: SRTPCryptoSuites; // should be saved if multiple suites are supported
-  videoSRTP: Buffer; // key and salt concatenated
-  videoSSRC: number; // rtp synchronisation source
-
-  /* Won't be save as audio is not supported by this example
-  audioPort: number,
-  audioCryptoSuite: SRTPCryptoSuites,
-  audioSRTP: Buffer,
-  audioSSRC: number,
-   */
+  videoCryptoSuite: SRTPCryptoSuites;
+  videoSRTP: Buffer;
+  videoSSRC: number;
 };
 
-// const FFMPEGH264ProfileNames = [
-//   'baseline',
-//   'main',
-//   'high',
-// ];
-// const FFMPEGH264LevelNames = [
-//   '3.1',
-//   '3.2',
-//   '4.0',
-// ];
 
-export class ExampleFFMPEGStreamingDelegate implements CameraStreamingDelegate {
-
+export class StreamingDelegate implements CameraStreamingDelegate {
   private ffmpegDebugOutput = false;
 
   private readonly hap: HAP;
+  private readonly log: Logging;
+
   controller?: CameraController;
 
-  // keep track of sessions
   pendingSessions: Record<string, SessionInfo> = {};
   ongoingSessions: Record<string, ChildProcess> = {};
 
-  constructor(hap: HAP) {
+  private cgdStreaming: CGDStreaming;
+
+  constructor(log: Logging, hap: HAP, cgdStreaming: CGDStreaming) {
+    this.log = log;
     this.hap = hap;
+
+    this.cgdStreaming = cgdStreaming;
   }
 
   handleSnapshotRequest(request: SnapshotRequest, callback: SnapshotRequestCallback): void {
-    const ffmpegCommand = `-f lavfi -i testsrc=s=${request.width}x${request.height} -vframes 1 -f mjpeg -`;
-    const ffmpeg = spawn('ffmpeg', ffmpegCommand.split(' '), {env: process.env});
+    this.log.debug(`Received request for snapshot at ${request.width}x${request.height}...`);
+    const ffmpegCommand = '-f mjpeg -i pipe:0 -vframes 1 -f mjpeg -';
+    const ffmpeg = spawn(ffmpegPath || 'ffmpeg', ffmpegCommand.split(' '), { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+
+
+    let cgdStream;
+    this.cgdStreaming.getStream().then((stream) => {
+      cgdStream = stream;
+      stream.pipe(ffmpeg.stdin);
+    });
 
     const snapshotBuffers: Buffer[] = [];
 
     ffmpeg.stdout.on('data', data => snapshotBuffers.push(data));
-    ffmpeg.stderr.on('data', data => {
-      if (this.ffmpegDebugOutput) {
-        console.log('SNAPSHOT: ' + String(data));
-      }
-    });
 
     ffmpeg.on('exit', (code, signal) => {
+      if (cgdStream) {
+        cgdStream.destroy();
+      }
+
       if (signal) {
-        console.log('Snapshot process was killed with signal: ' + signal);
+        this.log.error(`Snapshot process was killed with signal: ${signal}`);
         callback(new Error('killed with signal ' + signal));
       } else if (code === 0) {
-        console.log(`Successfully captured snapshot at ${request.width}x${request.height}`);
+        this.log.debug(`Successfully captured snapshot at ${request.width}x${request.height}`);
         callback(undefined, Buffer.concat(snapshotBuffers));
       } else {
-        console.log('Snapshot process exited with code ' + code);
+        this.log.error(`Snapshot process exited with code ${code}`);
         callback(new Error('Snapshot process exited with code ' + code));
       }
     });
   }
 
-  // called when iOS request rtp setup
   prepareStream(request: PrepareStreamRequest, callback: PrepareStreamCallback): void {
+    this.log.debug('Preparing stream...');
+
     const sessionId: StreamSessionIdentifier = request.sessionID;
     const targetAddress = request.targetAddress;
 
     const video = request.video;
     const videoPort = video.port;
 
-    const videoCryptoSuite = video.srtpCryptoSuite; // could be used to support multiple crypto suite (or support no suite for debugging)
+    const videoCryptoSuite = video.srtpCryptoSuite;
     const videoSrtpKey = video.srtp_key;
     const videoSrtpSalt = video.srtp_salt;
 
@@ -112,7 +109,8 @@ export class ExampleFFMPEGStreamingDelegate implements CameraStreamingDelegate {
       videoSSRC: videoSSRC,
     };
 
-    const currentAddress = ip.address('public', request.addressVersion); // ipAddress version must match
+    const currentAddress = ip.address('public', request.addressVersion);
+
     const response: PrepareStreamResponse = {
       address: currentAddress,
       video: {
@@ -122,33 +120,31 @@ export class ExampleFFMPEGStreamingDelegate implements CameraStreamingDelegate {
         srtp_key: videoSrtpKey,
         srtp_salt: videoSrtpSalt,
       },
-      // audio is omitted as we do not support audio in this example
     };
 
     this.pendingSessions[sessionId] = sessionInfo;
+
     callback(undefined, response);
   }
 
-  // called when iOS device asks stream to start/stop/reconfigure
   handleStreamRequest(request: StreamingRequest, callback: StreamRequestCallback): void {
     const sessionId = request.sessionID;
 
     switch (request.type) {
       case StreamRequestTypes.START: {
+        this.log.debug(`Received start request for session: ${request.sessionID}...`);
+
         const sessionInfo = this.pendingSessions[sessionId];
 
         const video: VideoInfo = request.video;
 
-        // const profile = FFMPEGH264ProfileNames[video.profile];
-        // const level = FFMPEGH264LevelNames[video.level];
         const width = video.width;
         const height = video.height;
         const fps = video.fps;
 
         const payloadType = video.pt;
         const maxBitrate = video.max_bit_rate;
-        // const rtcpInterval = video.rtcp_interval; // usually 0.5
-        const mtu = video.mtu; // maximum transmission unit
+        const mtu = video.mtu;
 
         const address = sessionInfo.address;
         const videoPort = sessionInfo.videoPort;
@@ -156,50 +152,60 @@ export class ExampleFFMPEGStreamingDelegate implements CameraStreamingDelegate {
         const cryptoSuite = sessionInfo.videoCryptoSuite;
         const videoSRTP = sessionInfo.videoSRTP.toString('base64');
 
-        console.log(`Starting video stream (${width}x${height}, ${fps} fps, ${maxBitrate} kbps, ${mtu} mtu)...`);
+        this.log.debug(`Starting video stream (${width}x${height}, ${fps} fps, ${maxBitrate} kbps, ${mtu} mtu)...`);
 
-        let videoffmpegCommand = `-f lavfi -i testsrc=size=${width}x${height}:rate=${fps} -map 0:0 ` +
-          `-c:v libx264 -pix_fmt yuv420p -r ${fps} -an -sn -dn -b:v ${maxBitrate}k -bufsize ${2 * maxBitrate}k -maxrate ${maxBitrate}k ` +
-          `-payload_type ${payloadType} -ssrc ${ssrc} -f rtp `; // -profile:v ${profile} -level:v ${level}
+        let videoffmpegCommand = '-f mjpeg -i pipe:0 -map 0:v ' +
+          `-c:v libx264 -pix_fmt yuv420p -r ${fps} -preset veryfast -tune zerolatency -g ${fps*2} -threads 0 ` +
+          `-an -sn -dn -b:v ${maxBitrate}k -bufsize ${2 * maxBitrate}k -maxrate ${maxBitrate}k ` +
+          `-payload_type ${payloadType} -ssrc ${ssrc} -f rtp `;
 
-        if (cryptoSuite === SRTPCryptoSuites.AES_CM_128_HMAC_SHA1_80) { // actually ffmpeg just supports AES_CM_128_HMAC_SHA1_80
+        if (cryptoSuite === SRTPCryptoSuites.AES_CM_128_HMAC_SHA1_80) {
           videoffmpegCommand += `-srtp_out_suite AES_CM_128_HMAC_SHA1_80 -srtp_out_params ${videoSRTP} s`;
         }
 
         videoffmpegCommand += `rtp://${address}:${videoPort}?rtcpport=${videoPort}&localrtcpport=${videoPort}&pkt_size=${mtu}`;
 
         if (this.ffmpegDebugOutput) {
-          console.log('FFMPEG command: ffmpeg ' + videoffmpegCommand);
+          this.log.debug(`FFMPEG command: ffmpeg ${videoffmpegCommand}`);
         }
 
-        const ffmpegVideo = spawn('ffmpeg', videoffmpegCommand.split(' '), {env: process.env});
+        const ffmpeg = spawn(ffmpegPath || 'ffmpeg', videoffmpegCommand.split(' '), {env: process.env});
+
+        let cgdStream;
+        this.cgdStreaming.getStream().then((stream) => {
+          cgdStream = stream;
+          stream.pipe(ffmpeg.stdin, { end: false });
+        });
 
         let started = false;
-        ffmpegVideo.stderr.on('data', data => {
+        ffmpeg.stderr.on('data', () => {
+          this.log.debug('Received data from ffmpeg');
           if (!started) {
             started = true;
-            console.log('FFMPEG: received first frame');
 
-            callback(); // do not forget to execute callback once set up
-          }
-
-          if (this.ffmpegDebugOutput) {
-            console.log('VIDEO: ' + String(data));
+            callback();
           }
         });
-        ffmpegVideo.on('error', error => {
-          console.log('[Video] Failed to start video stream: ' + error.message);
+
+        ffmpeg.on('error', error => {
+          this.log.error(`[Video] Failed to start video stream: ${error.message}`);
           callback(new Error('ffmpeg process creation failed!'));
         });
-        ffmpegVideo.on('exit', (code, signal) => {
+
+        ffmpeg.on('exit', (code, signal) => {
+          if (cgdStream) {
+            cgdStream.destroy();
+          }
+
           const message = '[Video] ffmpeg exited with code: ' + code + ' and signal: ' + signal;
 
           if (code === null || code === 255) {
-            console.log(message + ' (Video stream stopped!)');
+            this.log.debug(`${message} (Video stream stopped!)`);
           } else {
-            console.log(message + ' (error)');
+            this.log.debug(`${message} (Error occurred!)`);
 
             if (!started) {
+              this.log.error(`[Video] Failed to start video stream: ${message}`);
               callback(new Error(message));
             } else {
               this.controller!.forceStopStreamingSession(sessionId);
@@ -207,14 +213,13 @@ export class ExampleFFMPEGStreamingDelegate implements CameraStreamingDelegate {
           }
         });
 
-        this.ongoingSessions[sessionId] = ffmpegVideo;
+        this.ongoingSessions[sessionId] = ffmpeg;
         delete this.pendingSessions[sessionId];
 
         break;
       }
       case StreamRequestTypes.RECONFIGURE: {
-        // not supported by this example
-        console.log('Received (unsupported) request to reconfigure to: ' + JSON.stringify(request.video));
+        this.log.debug(`Received (unsupported) request to reconfigure to: ${JSON.stringify(request.video)}`);
         callback();
         break;
       }
@@ -226,13 +231,12 @@ export class ExampleFFMPEGStreamingDelegate implements CameraStreamingDelegate {
             ffmpegProcess.kill('SIGKILL');
           }
         } catch (e) {
-          console.log('Error occurred terminating the video process!');
-          console.log(e);
+          this.log.error('Error occurred terminating the video process!');
         }
 
         delete this.ongoingSessions[sessionId];
 
-        console.log('Stopped streaming session!');
+        this.log.debug('Stopped streaming session!');
         callback();
         break;
       }
