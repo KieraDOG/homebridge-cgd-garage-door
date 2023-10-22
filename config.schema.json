@@ -1,27 +1,19 @@
 {
-  "pluginAlias": "CGDCamera",
+  "pluginAlias": "CGDGarageDoor",
   "pluginType": "platform",
   "singular": true,
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
-        "type": "string",
-        "required": true,
-        "default": "CGD Camera Platform"
-      },
       "email": {
         "title": "Email",
         "type": "string",
-        "required": true,
-        "default": "CGD Login Email"
+        "required": true
       },
       "password": {
         "title": "Password",
         "type": "string",
-        "required": true,
-        "default": "CGD Login Password"
+        "required": true
       }
     }
   }

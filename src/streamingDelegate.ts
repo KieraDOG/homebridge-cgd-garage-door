@@ -18,7 +18,7 @@ import {
   VideoInfo,
 } from 'homebridge';
 import ip from 'ip';
-import { CGDStreaming } from './CGDStreaming';
+import { CGDGarageDoor } from './CGDGarageDoor';
 
 
 type SessionInfo = {
@@ -42,9 +42,9 @@ export class StreamingDelegate implements CameraStreamingDelegate {
   pendingSessions: Record<string, SessionInfo> = {};
   ongoingSessions: Record<string, ChildProcess> = {};
 
-  private cgdStreaming: CGDStreaming;
+  private cgdStreaming: CGDGarageDoor;
 
-  constructor(log: Logging, hap: HAP, cgdStreaming: CGDStreaming) {
+  constructor(log: Logging, hap: HAP, cgdStreaming: CGDGarageDoor) {
     this.log = log;
     this.hap = hap;
 
@@ -53,13 +53,17 @@ export class StreamingDelegate implements CameraStreamingDelegate {
 
   handleSnapshotRequest(request: SnapshotRequest, callback: SnapshotRequestCallback): void {
     this.log.debug(`Received request for snapshot at ${request.width}x${request.height}...`);
-    const ffmpegCommand = '-f mjpeg -i pipe:0 -vframes 1 -f mjpeg -';
+    const ffmpegCommand = '-f mjpeg -i pipe:0 -an -vframes 1 -preset ultrafast -f mjpeg -';
     const ffmpeg = spawn(ffmpegPath || 'ffmpeg', ffmpegCommand.split(' '), { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
-
 
     let cgdStream;
     this.cgdStreaming.getStream().then((stream) => {
       cgdStream = stream;
+
+      if (ffmpeg.killed) {
+        return;
+      }
+
       stream.pipe(ffmpeg.stdin);
     });
 
@@ -155,7 +159,7 @@ export class StreamingDelegate implements CameraStreamingDelegate {
         this.log.debug(`Starting video stream (${width}x${height}, ${fps} fps, ${maxBitrate} kbps, ${mtu} mtu)...`);
 
         let videoffmpegCommand = '-f mjpeg -i pipe:0 -map 0:v ' +
-          `-c:v libx264 -pix_fmt yuv420p -r ${fps} -preset veryfast -tune zerolatency -g ${fps*2} -threads 0 ` +
+          `-c:v libx264 -pix_fmt yuv420p -r ${fps} -preset ultrafast -tune zerolatency -g ${fps*2} -threads 0 ` +
           `-an -sn -dn -b:v ${maxBitrate}k -bufsize ${2 * maxBitrate}k -maxrate ${maxBitrate}k ` +
           `-payload_type ${payloadType} -ssrc ${ssrc} -f rtp `;
 
@@ -174,12 +178,17 @@ export class StreamingDelegate implements CameraStreamingDelegate {
         let cgdStream;
         this.cgdStreaming.getStream().then((stream) => {
           cgdStream = stream;
+
+          if (ffmpeg.killed) {
+            return;
+          }
+
           stream.pipe(ffmpeg.stdin, { end: false });
         });
 
         let started = false;
         ffmpeg.stderr.on('data', () => {
-          this.log.debug('Received data from ffmpeg');
+          // this.log.debug('Received data from ffmpeg');
           if (!started) {
             started = true;
 

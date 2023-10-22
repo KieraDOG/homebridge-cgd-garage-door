@@ -1,21 +1,19 @@
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
-import http, {IncomingMessage, Server, ServerResponse} from 'http';
 import {
   API,
   APIEvent,
   CameraControllerOptions,
   DynamicPlatformPlugin,
-  HAP,
   Logging,
   PlatformAccessory,
   PlatformAccessoryEvent,
   PlatformConfig,
 } from 'homebridge';
-import {StreamingDelegate} from './streamingDelegate';
-import { CGDStreaming } from './CGDStreaming';
+import { Server } from 'http';
+import { CGDGarageDoor } from './CGDGarageDoor';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
+import { StreamingDelegate } from './streamingDelegate';
 
 export class CGDCameraPlatform implements DynamicPlatformPlugin {
-
   private readonly log: Logging;
   private readonly api: API;
 
@@ -23,7 +21,7 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
   private readonly accessories: PlatformAccessory[] = [];
 
-  private cgdStreaming?: CGDStreaming;
+  private cgdGarageDoor?: CGDGarageDoor;
 
   constructor(log: Logging, config: PlatformConfig, api: API) {
     this.log = log;
@@ -31,15 +29,20 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
     log.info('Example platform finished initializing!');
 
+    const cgdGarageDoor = new CGDGarageDoor(this.log, {
+      email: config.email,
+      password: config.password,
+    });
+
+    this.cgdGarageDoor = cgdGarageDoor;
+
     api.on(APIEvent.DID_FINISH_LAUNCHING, async () => {
       log.info('Example platform did finish launching!');
 
-      const cgdStreaming = new CGDStreaming(this.log);
-      await cgdStreaming.init();
+      await this.cgdGarageDoor!.getDevice();
 
-      this.cgdStreaming = cgdStreaming;
-
-      this.addAccessory(this.cgdStreaming.device?.name || 'CGD Camera');
+      this.removeAccessories();
+      this.addAccessory(this.cgdGarageDoor!.device?.name || 'CGD Garage Door');
     });
   }
 
@@ -50,7 +53,7 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
       this.log('%s identified!', accessory.displayName);
     });
 
-    const streamingDelegate = new StreamingDelegate(this.log, this.api.hap, this.cgdStreaming!);
+    const streamingDelegate = new StreamingDelegate(this.log, this.api.hap, this.cgdGarageDoor!);
     const options: CameraControllerOptions = {
       cameraStreamCount: 2,
       delegate: streamingDelegate,
@@ -84,6 +87,33 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
     accessory.configureController(cameraController);
 
+    const service = accessory.getService(this.api.hap.Service.GarageDoorOpener) || accessory.addService(new this.api.hap.Service.GarageDoorOpener(accessory.displayName));
+
+    service.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState)
+      .onGet(() => this.cgdGarageDoor!.getDoorCurrentState());
+
+    service.getCharacteristic(this.api.hap.Characteristic.TargetDoorState)
+      .onGet(() => this.cgdGarageDoor!.getDoorCurrentState())
+      .onSet(async (value) => {
+        await this.cgdGarageDoor!.setDoorTargetState(+value);
+
+        const updateState = setInterval(async () => {
+          const currentState = await this.cgdGarageDoor!.getDoorCurrentState();
+          this.log.debug(`Current state: ${currentState}, target state: ${value}`);
+          service.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(currentState);
+
+          if (currentState === +value) {
+            this.log.debug('Current state matches target state, clearing interval');
+            clearInterval(updateState);
+          }
+        }, 4000);
+
+        setTimeout(() => {
+          this.log.debug('Timeout reached, clearing interval');
+          clearInterval(updateState);
+        }, 60000);
+      });
+
     this.accessories.push(accessory);
   }
 
@@ -93,10 +123,6 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
     const uuid = this.api.hap.uuid.generate(name);
     const accessory = new this.api.platformAccessory(name, uuid);
-
-    if (this.accessories.find(accessory => accessory.UUID === uuid)) {
-      this.removeAccessories();
-    }
 
     this.configureAccessory(accessory);
 
