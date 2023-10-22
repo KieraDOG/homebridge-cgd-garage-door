@@ -12,6 +12,11 @@ ffmpeg.setFfmpegPath(ffmpegPath || 'ffmpeg');
 
 const cookieJar = new tough.CookieJar();
 
+enum LampState {
+  ON = 1,
+  OFF = 0,
+}
+
 enum DeviceDoorState {
   OPEN = 2270,
   OPENING = 5270,
@@ -24,6 +29,7 @@ interface Data {
   ohw: string;
   osw: string;
   wsw: string;
+  lmp: LampState;
 }
 
 interface Device {
@@ -145,6 +151,25 @@ export class CGDGarageDoor {
       await this.instance.get(`/api.php?cmd=dev&mac=${this.device!.name}&mac_cmd=door_close`);
       this.log.debug('Closed door!');
     }
+  };
+
+  public getLightbulb = async (): Promise<number> => {
+    await this.getDevice();
+
+    const lampState = this.device!.data.lmp;
+
+    return {
+      [LampState.ON]: 1,
+      [LampState.OFF]: 0,
+    }[lampState];
+  };
+
+  public setLightbulb = async (value): Promise<void> => {
+    const cmd = value ? 'lamp_on' : 'lamp_off';
+
+    this.log.debug(`Setting lightbulb to ${value ? 'on' : 'off'}...`);
+    await this.instance.get(`/api.php?cmd=dev&mac=${this.device!.name}&mac_cmd=${cmd}`);
+    this.log.debug(`Set lightbulb to ${value ? 'on' : 'off'}!`);
   };
 
   public getStream = async (): Promise<Stream> => {

@@ -102,6 +102,12 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
         return this.cgdGarageDoor!.device!.name;
       });
 
+    const lightbulb = accessory.getService(this.api.hap.Service.Lightbulb) || accessory.addService(new this.api.hap.Service.Lightbulb(accessory.displayName));
+
+    lightbulb.getCharacteristic(this.api.hap.Characteristic.On)
+      .onGet(() => this.cgdGarageDoor!.getLightbulb())
+      .onSet((value) => this.cgdGarageDoor!.setLightbulb(value));
+
     const garageDoorOpener = accessory.getService(this.api.hap.Service.GarageDoorOpener) || accessory.addService(new this.api.hap.Service.GarageDoorOpener(accessory.displayName));
 
     garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState)
