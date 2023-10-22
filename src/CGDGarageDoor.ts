@@ -5,8 +5,8 @@ import ffmpeg from 'fluent-ffmpeg';
 import {
   Logging,
 } from 'homebridge';
+import { Stream } from 'stream';
 import tough from 'tough-cookie';
-import { v4 as uuid } from 'uuid';
 
 ffmpeg.setFfmpegPath(ffmpegPath || 'ffmpeg');
 
@@ -19,9 +19,13 @@ enum DeviceDoorState {
   CLOSING = 4270,
 }
 
+interface Data {
+  ds: DeviceDoorState;
+}
+
 interface Device {
   name: string;
-  data: any;
+  data: Data;
 }
 
 interface Credential {
@@ -140,7 +144,7 @@ export class CGDGarageDoor {
     }
   };
 
-  public getStream = async (): Promise<any> => {
+  public getStream = async (): Promise<Stream> => {
     if (!this.device) {
       this.log.debug('Device not found, getting device...');
       await this.getDevice();
