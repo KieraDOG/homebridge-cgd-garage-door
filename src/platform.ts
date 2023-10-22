@@ -87,12 +87,27 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
     accessory.configureController(cameraController);
 
-    const service = accessory.getService(this.api.hap.Service.GarageDoorOpener) || accessory.addService(new this.api.hap.Service.GarageDoorOpener(accessory.displayName));
+    const information = accessory.getService(this.api.hap.Service.AccessoryInformation) || accessory.addService(this.api.hap.Service.AccessoryInformation);
+    information
+      .setCharacteristic(this.api.hap.Characteristic.Manufacturer, 'CGD')
+      .setCharacteristic(this.api.hap.Characteristic.Model, 'PRO Sectional Door Opener');
 
-    service.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState)
+    information
+      .getCharacteristic(this.api.hap.Characteristic.SerialNumber)
+      .onGet(async () => {
+        if (!this.cgdGarageDoor!.device) {
+          await this.cgdGarageDoor!.getDevice();
+        }
+
+        return this.cgdGarageDoor!.device!.name;
+      });
+
+    const garageDoorOpener = accessory.getService(this.api.hap.Service.GarageDoorOpener) || accessory.addService(new this.api.hap.Service.GarageDoorOpener(accessory.displayName));
+
+    garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState)
       .onGet(() => this.cgdGarageDoor!.getDoorCurrentState());
 
-    service.getCharacteristic(this.api.hap.Characteristic.TargetDoorState)
+    garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.TargetDoorState)
       .onGet(() => this.cgdGarageDoor!.getDoorCurrentState())
       .onSet(async (value) => {
         await this.cgdGarageDoor!.setDoorTargetState(+value);
@@ -100,7 +115,7 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
         const updateState = setInterval(async () => {
           const currentState = await this.cgdGarageDoor!.getDoorCurrentState();
           this.log.debug(`Current state: ${currentState}, target state: ${value}`);
-          service.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(currentState);
+          garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(currentState);
 
           if (currentState === +value) {
             this.log.debug('Current state matches target state, clearing interval');

@@ -21,6 +21,9 @@ enum DeviceDoorState {
 
 interface Data {
   ds: DeviceDoorState;
+  ohw: string;
+  osw: string;
+  wsw: string;
 }
 
 interface Device {
