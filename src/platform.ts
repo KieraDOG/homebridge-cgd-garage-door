@@ -118,6 +118,8 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
       .onSet(async (value) => {
         await this.cgdGarageDoor!.setDoorTargetState(+value);
 
+        let isClosed = false;
+
         const updateState = setInterval(async () => {
           const currentState = await this.cgdGarageDoor!.getDoorCurrentState();
           this.log.debug(`Current state: ${currentState}, target state: ${value}`);
@@ -126,11 +128,18 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
           if (currentState === +value) {
             this.log.debug('Current state matches target state, clearing interval');
             clearInterval(updateState);
+
+            isClosed = true;
           }
         }, 4000);
 
         setTimeout(() => {
           this.log.debug('Timeout reached, clearing interval');
+          if (isClosed) {
+            return;
+          }
+
+          this.log.error('Failed to close door');
           clearInterval(updateState);
         }, 60000);
       });

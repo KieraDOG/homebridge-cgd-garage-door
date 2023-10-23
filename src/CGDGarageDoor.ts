@@ -76,11 +76,17 @@ export class CGDGarageDoor {
     formData.append('user', this.credential.email);
     formData.append('pass', this.credential.password);
 
-    await this.instance.post('/api.php?do=login', formData);
+    const response = await this.instance.post('/api.php?do=login', formData);
 
     this.isLoggedIn = true;
 
     this.log.debug('Logged in!');
+
+    const { user, msg, error } = response.data.login;
+
+    if (error !== '0') {
+      throw new Error(`[LOGIN FAILED]: ${user} - ${msg}`);
+    }
   };
 
   public getDevice = async (): Promise<void> => {
@@ -92,10 +98,15 @@ export class CGDGarageDoor {
     const response = await this.instance.get('/api.php?do=get_dev');
     const name = Object.keys(response.data)[0];
     this.log.debug(`Got device! ${name}`);
+    const data = response.data[name].data.opener;
+
+    if (!response.data[name]?.data?.opener) {
+      throw new Error(`[DEVICE NOT FOUND]: ${name}`);
+    }
 
     this.device = {
       name,
-      data: response.data[name].data.opener,
+      data,
     };
   };
 
