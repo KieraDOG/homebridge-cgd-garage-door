@@ -64,10 +64,14 @@ export class StreamingDelegate implements CameraStreamingDelegate {
         return;
       }
 
-      stream.pipe(ffmpeg.stdin);
+      cgdStream.pipe(ffmpeg.stdin);
     });
 
     const snapshotBuffers: Buffer[] = [];
+
+    ffmpeg.stdin.on('error', error => {
+      this.log.error(`[Snapshot] Error sending data to stream: ${error.message}`);
+    });
 
     ffmpeg.stdout.on('data', data => snapshotBuffers.push(data));
 
@@ -77,13 +81,13 @@ export class StreamingDelegate implements CameraStreamingDelegate {
       }
 
       if (signal) {
-        this.log.error(`Snapshot process was killed with signal: ${signal}`);
+        this.log.error(`[Snapshot] Process was killed with signal: ${signal}`);
         callback(new Error('killed with signal ' + signal));
       } else if (code === 0) {
         this.log.debug(`Successfully captured snapshot at ${request.width}x${request.height}`);
         callback(undefined, Buffer.concat(snapshotBuffers));
       } else {
-        this.log.error(`Snapshot process exited with code ${code}`);
+        this.log.error(`[Snapshot] Process exited with code ${code}`);
         callback(new Error('Snapshot process exited with code ' + code));
       }
     });
@@ -183,12 +187,15 @@ export class StreamingDelegate implements CameraStreamingDelegate {
             return;
           }
 
-          stream.pipe(ffmpeg.stdin, { end: false });
+          cgdStream.pipe(ffmpeg.stdin);
+        });
+
+        ffmpeg.stdin.on('error', error => {
+          this.log.error(`[Video] Error sending data to stream: ${error.message}`);
         });
 
         let started = false;
         ffmpeg.stderr.on('data', () => {
-          // this.log.debug('Received data from ffmpeg');
           if (!started) {
             started = true;
 
