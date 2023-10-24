@@ -17,15 +17,8 @@ enum LampState {
   OFF = 0,
 }
 
-enum DeviceDoorState {
-  OPEN = 2270,
-  OPENING = 5270,
-  CLOSED = 1270,
-  CLOSING = 4270,
-}
-
 interface Data {
-  ds: DeviceDoorState;
+  ds: string;
   ohw: string;
   osw: string;
   wsw: string;
@@ -40,6 +33,15 @@ interface Device {
 interface Credential {
   email: string;
   password: string;
+}
+
+enum DoorState {
+  Closed,
+  Opened,
+  Stopped,
+  Closing,
+  Opening,
+  Error,
 }
 
 export class CGDGarageDoor {
@@ -110,43 +112,77 @@ export class CGDGarageDoor {
     };
   };
 
-  public getDoorCurrentState = async (): Promise<number> => {
+  private getDoorState = async (): Promise<DoorState> => {
     await this.getDevice();
 
-    const doorState = this.device!.data.ds;
+    const [doorState] = this.device!.data.ds.split('');
+
+    if (doorState === '1') {
+      this.log.debug('Door is closed!');
+      return DoorState.Closed;
+    }
+
+    if (doorState === '2') {
+      this.log.debug('Door is opened!');
+      return DoorState.Opened;
+    }
+
+    if (doorState === '3') {
+      this.log.debug('Door is stopped!');
+      return DoorState.Stopped;
+    }
+
+    if (doorState === '4') {
+      this.log.debug('Door is closing!');
+      return DoorState.Closing;
+    }
+
+    if (doorState === '5') {
+      this.log.debug('Door is opening!');
+      return DoorState.Opening;
+    }
+
+    return DoorState.Error;
+  };
+
+  public getDoorCurrentState = async (): Promise<number> => {
+    const doorState = await this.getDoorState();
+
+    // static readonly OPEN = 0;
+    // static readonly CLOSED = 1;
+    // static readonly OPENING = 2;
+    // static readonly CLOSING = 3;
+    // static readonly STOPPED = 4;
 
     return {
-      [DeviceDoorState.OPEN]: 0,
-      [DeviceDoorState.CLOSED]: 1,
-      [DeviceDoorState.OPENING]: 2,
-      [DeviceDoorState.CLOSING]: 3,
-      // TODO: STOPPED
-    }[doorState];
+      [DoorState.Opened]: 0,
+      [DoorState.Closed]: 1,
+      [DoorState.Opening]: 2,
+      [DoorState.Closing]: 3,
+      [DoorState.Stopped]: 4,
+    }[doorState] || -1;
   };
 
   public getDoorTargetState = async (): Promise<number> => {
-    await this.getDevice();
+    const doorState = await this.getDoorState();
 
-    const doorState = this.device!.data.ds;
+    // static readonly OPEN = 0;
+    // static readonly CLOSED = 1;
 
     return {
-      [DeviceDoorState.OPEN]: 0,
-      [DeviceDoorState.CLOSED]: 1,
-      [DeviceDoorState.OPENING]: 0,
-      [DeviceDoorState.CLOSING]: 1,
+      [DoorState.Opened]: 0,
+      [DoorState.Opening]: 0,
+      [DoorState.Stopped]: 0,
+      [DoorState.Closed]: 1,
+      [DoorState.Closing]: 1,
     }[doorState];
   };
 
   public setDoorTargetState = async (value: number): Promise<void> => {
-    if (!this.device) {
-      this.log.debug('Device not found, getting device...');
-      await this.getDevice();
-    }
-
-    const doorState = this.device!.data.ds;
+    const doorState = await this.getDoorState();
 
     if (value === 0) {
-      if (doorState === DeviceDoorState.OPEN) {
+      if (doorState === DoorState.Opened) {
         return;
       }
 
@@ -154,7 +190,7 @@ export class CGDGarageDoor {
       await this.instance.get(`/api.php?cmd=dev&mac=${this.device!.name}&mac_cmd=door_open`);
       this.log.debug('Opened door!');
     } else {
-      if (doorState === DeviceDoorState.CLOSED) {
+      if (doorState === DoorState.Closed) {
         return;
       }
 
@@ -201,7 +237,6 @@ export class CGDGarageDoor {
 
     stream.on('error', () => {
       this.log.error('Stream error!');
-
       clearInterval(keepAlive);
     });
 
