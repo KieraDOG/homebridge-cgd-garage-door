@@ -1,12 +1,10 @@
-name: Publish
+name: Prepublish
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
 
 jobs:
-  publish:
+  Prepublish:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,8 +18,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx semantic-release
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
