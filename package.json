@@ -6,10 +6,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/KieraDOG/homebridge-cgd-camera.git"
+    "url": "https://github.com/KieraDOG/homebridge-cgd-garage-door.git"
   },
   "bugs": {
-    "url": "https://github.com/KieraDOG/homebridge-cgd-camera/issues"
+    "url": "https://github.com/KieraDOG/homebridge-cgd-garage-door/issues"
   },
   "author": "Long Zhao <zlong@outlook.com>",
   "engines": {
