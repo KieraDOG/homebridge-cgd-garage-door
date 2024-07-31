@@ -16,34 +16,64 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
   private readonly accessories: PlatformAccessory[] = [];
 
-  private cgdGarageDoor: CGDGarageDoor;
   private refreshInterval?: NodeJS.Timer;
 
   constructor(log: Logging, config: PlatformConfig, api: API) {
     this.log = log;
     this.api = api;
 
-    log.info('Platform finished initializing!');
+    this.log('Platform finished initializing!');
 
     const { deviceHostname, deviceLocalKey } = config;
+    if (!deviceHostname || !deviceLocalKey) {
+      this.log.warn('Missing required configuration parameters');
+      return;
+    }
 
-    this.cgdGarageDoor = new CGDGarageDoor(this.log, {
+    const cgdGarageDoor = new CGDGarageDoor(this.log, {
       deviceHostname,
       deviceLocalKey,
     });
 
     api.on(APIEvent.DID_FINISH_LAUNCHING, () => {
-      this.addAccessory(deviceHostname);
+      this.log('Did finish launching');
+      this.addAccessory(deviceHostname, cgdGarageDoor);
     });
 
     api.on(APIEvent.SHUTDOWN, () => {
-      this.removeAccessories();
+      this.log('SHUTDOWN');
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval);
+      }
     });
   }
 
   configureAccessory(accessory: PlatformAccessory): void {
     this.log('Configuring accessory %s', accessory.displayName);
+    this.accessories.push(accessory);
+  }
 
+  async addAccessory(name: string, cgdGarageDoor: CGDGarageDoor) {
+    await cgdGarageDoor.poolStatus();
+
+    this.log('Adding new accessory with name %s', name);
+
+    const uuid = this.api.hap.uuid.generate(name);
+
+    const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
+    if (existingAccessory) {
+      this.log('Accessory with name %s already exists', name);
+      this.configureGarageDoorAccessory(existingAccessory, cgdGarageDoor);
+      return;
+    }
+
+    const accessory = new this.api.platformAccessory(name, uuid);
+    this.configureGarageDoorAccessory(accessory, cgdGarageDoor);
+    this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    this.log('Accessory with name %s added', name);
+  }
+
+  configureGarageDoorAccessory(accessory: PlatformAccessory, cgdGarageDoor: CGDGarageDoor) {
     accessory.on(PlatformAccessoryEvent.IDENTIFY, () => {
       this.log('%s identified!', accessory.displayName);
     });
@@ -56,69 +86,35 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
     const garageDoorOpener = accessory.getService(this.api.hap.Service.GarageDoorOpener) || accessory.addService(new this.api.hap.Service.GarageDoorOpener(accessory.displayName));
 
     garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState)
-      .onGet(() => this.cgdGarageDoor.getDoorCurrentState());
+      .onGet(() => cgdGarageDoor.getDoorCurrentState());
 
     garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.TargetDoorState)
-      .onGet(() => this.cgdGarageDoor.getDoorTargetState())
-      .onSet((value) => this.cgdGarageDoor.setDoorTargetState(+value));
+      .onGet(() => cgdGarageDoor.getDoorTargetState())
+      .onSet((value) => cgdGarageDoor.setDoorTargetState(+value));
 
     const lightbulb = accessory.getService(this.api.hap.Service.Lightbulb) || accessory.addService(new this.api.hap.Service.Lightbulb(accessory.displayName));
 
     lightbulb.getCharacteristic(this.api.hap.Characteristic.On)
-      .onGet(() => this.cgdGarageDoor.getLightbulb())
-      .onSet((value) => this.cgdGarageDoor.setLightbulb(value));
+      .onGet(() => cgdGarageDoor.getLightbulb())
+      .onSet((value) => cgdGarageDoor.setLightbulb(value));
 
     const vacationSwitch = accessory.getService(this.api.hap.Service.Switch) || accessory.addService(new this.api.hap.Service.Switch(accessory.displayName));
 
     vacationSwitch.getCharacteristic(this.api.hap.Characteristic.On)
-      .onGet(() => this.cgdGarageDoor.getVacation())
-      .onSet((value) => this.cgdGarageDoor.setVacation(value));
+      .onGet(() => cgdGarageDoor.getVacation())
+      .onSet((value) => cgdGarageDoor.setVacation(value));
 
     this.refreshInterval = setInterval(() => {
       garageDoorOpener
-        .getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(this.cgdGarageDoor.getDoorCurrentState());
+        .getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(cgdGarageDoor.getDoorCurrentState());
 
       lightbulb
-        .getCharacteristic(this.api.hap.Characteristic.On).updateValue(this.cgdGarageDoor.getLightbulb());
+        .getCharacteristic(this.api.hap.Characteristic.On).updateValue(cgdGarageDoor.getLightbulb());
 
       vacationSwitch
-        .getCharacteristic(this.api.hap.Characteristic.On).updateValue(this.cgdGarageDoor.getVacation());
-    }, 4000);
-  }
+        .getCharacteristic(this.api.hap.Characteristic.On).updateValue(cgdGarageDoor.getVacation());
+    }, 2000);
 
-  async addAccessory(name: string) {
-    await this.cgdGarageDoor.poolStatus();
-
-    this.log.info('Adding new accessory with name %s', name);
-
-    const uuid = this.api.hap.uuid.generate(name);
-
-    const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
-
-    if (existingAccessory) {
-      this.log.info('Accessory with name %s already exists', name);
-
-      this.configureAccessory(existingAccessory);
-
-      return;
-    }
-
-    const accessory = new this.api.platformAccessory(name, uuid);
-
-    this.configureAccessory(accessory);
-
-    this.accessories.push(accessory);
-    this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, this.accessories);
-  }
-
-  removeAccessories() {
-    this.log.info('Removing all accessories');
-
-    this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, this.accessories);
-    this.accessories.splice(0, this.accessories.length);
-
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
+    this.log('Garage Door Accessory %s configured!', accessory.displayName);
   }
 }
