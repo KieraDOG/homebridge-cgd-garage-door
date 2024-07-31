@@ -42,20 +42,32 @@ export class CGDGarageDoor {
     const { deviceHostname, deviceLocalKey } = this.config;
     const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`);
 
+    const data = await response.json();
+
+    this.log.debug(response.status.toString());
+    this.log.debug(JSON.stringify(data));
+
+    if (!response.ok) {
+      this.log.error(`Failed to run command: ${cmd}=${value}`);
+
+      return;
+    }
+
     if (this.status?.[cmd]) {
+      this.log.debug(`Setting ${cmd} to ${softValue}`);
       this.status[cmd] = softValue;
     }
 
-    return response.json();
+    return data;
   };
 
   private refreshStatus = async () => {
     this.log.debug('Getting status...');
 
-    const data = await this.run({ cmd: 'status', value: 'json' });
+    const data = await this.run({ cmd: 'status', value: 'json', softValue: (new Date()).toLocaleString() });
 
     if (!data) {
-      this.log.error(`Device not found: ${JSON.stringify(data)}`);
+      this.log.error('Can not get status!');
 
       return;
     }
@@ -65,27 +77,22 @@ export class CGDGarageDoor {
 
   private getDoorState = (): DoorState => {
     if (this.status?.door.startsWith('Closed')) {
-      this.log.debug('Door is closed!');
       return DoorState.Closed;
     }
 
     if (this.status?.door.startsWith('Opened')) {
-      this.log.debug('Door is opened!');
       return DoorState.Opened;
     }
 
     if (this.status?.door.startsWith('Closing')) {
-      this.log.debug('Door is closing!');
       return DoorState.Closing;
     }
 
     if (this.status?.door.startsWith('Opening')) {
-      this.log.debug('Door is opening!');
       return DoorState.Opening;
     }
 
     if (this.status?.door.startsWith('Stop')) {
-      this.log.debug('Door is stopped!');
       return DoorState.Stopped;
     }
 
