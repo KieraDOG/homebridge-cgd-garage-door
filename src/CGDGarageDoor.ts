@@ -62,7 +62,8 @@ export class CGDGarageDoor {
 
     if (!data) {
       this.log.error(`Device not found: ${JSON.stringify(data)}`);
-      throw new Error('DEVICE NOT FOUND');
+
+      return;
     }
 
     this.status = data;
@@ -114,6 +115,11 @@ export class CGDGarageDoor {
     // static readonly CLOSING = 3;
     // static readonly STOPPED = 4;
 
+    if (doorState === DoorState.Error) {
+      this.log.error(`[getDoorCurrentState] Unknown door state: ${doorState}`);
+      return -1;
+    }
+
     return {
       [DoorState.Opened]: 0,
       [DoorState.Closed]: 1,
@@ -128,6 +134,11 @@ export class CGDGarageDoor {
 
     // static readonly OPEN = 0;
     // static readonly CLOSED = 1;
+
+    if (doorState === DoorState.Error) {
+      this.log.error(`[getDoorTargetState] Unknown door state: ${doorState}`);
+      return -1;
+    }
 
     return {
       [DoorState.Opened]: 0,
