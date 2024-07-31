@@ -1,38 +1,21 @@
-import axios, { AxiosInstance } from 'axios';
-import { wrapper } from 'axios-cookiejar-support';
-import ffmpegPath from 'ffmpeg-for-homebridge';
-import ffmpeg from 'fluent-ffmpeg';
-import {
-  Logging,
-} from 'homebridge';
-import { Stream } from 'stream';
-import tough from 'tough-cookie';
+import retry from 'async-retry';
+import { Logging } from 'homebridge';
 
-ffmpeg.setFfmpegPath(ffmpegPath || 'ffmpeg');
-
-const cookieJar = new tough.CookieJar();
-
-enum LampState {
-  ON = 1,
-  OFF = 0,
+interface Status {
+  lamp: 'on' | 'off';
+  door: string;
+  dt: string;
+  vacation: 'on' | 'off';
+  cycles: string;
+  wdBm: string;
+  error: string;
+  camera: string;
+  status: string;
 }
 
-interface Data {
-  ds: string;
-  ohw: string;
-  osw: string;
-  wsw: string;
-  lmp: LampState;
-}
-
-interface Device {
-  name: string;
-  data: Data;
-}
-
-interface Credential {
-  email: string;
-  password: string;
+interface Config {
+  deviceHostname: string;
+  deviceLocalKey: string;
 }
 
 enum DoorState {
@@ -46,107 +29,84 @@ enum DoorState {
 
 export class CGDGarageDoor {
   private readonly log: Logging;
+  private config: Config;
+  private status?: Status;
 
-  private credential: Credential;
-  private instance: AxiosInstance;
-  private isLoggedIn: boolean;
-
-  device?: Device;
-
-  constructor(log: Logging, credential: Credential) {
+  constructor(log: Logging, config: Config) {
     this.log = log;
-
-    this.credential = credential;
-
-    this.instance = this.getInstance();
-    this.isLoggedIn = false;
+    this.config = config;
   }
 
-  private getInstance = (): AxiosInstance => {
-    const instance = axios.create({
-      withCredentials: true,
-      jar: cookieJar,
-      baseURL: 'https://iot2superlift.krazyivan.net/iot/superlift',
-    });
+  private run = ({ cmd, value, softValue = value }) => retry(async () => {
+    this.log.debug(`Running command: ${cmd}=${value}`);
 
-    return wrapper(instance);
-  };
+    const { deviceHostname, deviceLocalKey } = this.config;
+    const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`);
 
-  private login = async (): Promise<void> => {
-    this.log.debug('Logging in...');
-    const formData = new FormData();
-    formData.append('user', this.credential.email);
-    formData.append('pass', this.credential.password);
-
-    const response = await this.instance.post('/api.php?do=login', formData);
-
-    this.isLoggedIn = true;
-
-    this.log.debug('Logged in!');
-
-    const { user, msg, error } = response.data.login;
-
-    if (error !== '0') {
-      throw new Error(`[LOGIN FAILED]: ${user} - ${msg}`);
-    }
-  };
-
-  public getDevice = async (): Promise<void> => {
-    this.log.debug('Getting device...');
-    if(!this.isLoggedIn) {
-      await this.login();
+    if (this.status?.[cmd]) {
+      this.status[cmd] = softValue;
     }
 
-    const response = await this.instance.get('/api.php?do=get_dev');
-    const name = Object.keys(response.data)[0];
-    this.log.debug(`Got device! ${name}`);
-    const data = response.data[name].data.opener;
+    return response.json();
+  }, {
+    retries: 3,
+    onRetry: (error, attempt) => {
+      this.log.warn(`Attempt Running command: ${cmd}=${value}, ${attempt} failed: ${error.message}`);
+    },
+  });
 
-    if (!response.data[name]?.data?.opener) {
-      throw new Error(`[DEVICE NOT FOUND]: ${name}`);
+  private refreshStatus = async () => {
+    this.log.debug('Getting status...');
+
+    const data = await this.run({ cmd: 'status', value: 'json' });
+
+    if (!data) {
+      this.log.error(`Device not found: ${JSON.stringify(data)}`);
+      throw new Error('DEVICE NOT FOUND');
     }
 
-    this.device = {
-      name,
-      data,
-    };
+    this.status = data;
   };
 
-  private getDoorState = async (): Promise<DoorState> => {
-    await this.getDevice();
-
-    const [doorState] = this.device!.data.ds.split('');
-
-    if (doorState === '1') {
+  private getDoorState = (): DoorState => {
+    if (this.status?.door.startsWith('Closed')) {
       this.log.debug('Door is closed!');
       return DoorState.Closed;
     }
 
-    if (doorState === '2') {
+    if (this.status?.door.startsWith('Opened')) {
       this.log.debug('Door is opened!');
       return DoorState.Opened;
     }
 
-    if (doorState === '3') {
-      this.log.debug('Door is stopped!');
-      return DoorState.Stopped;
-    }
-
-    if (doorState === '4') {
+    if (this.status?.door.startsWith('Closing')) {
       this.log.debug('Door is closing!');
       return DoorState.Closing;
     }
 
-    if (doorState === '5') {
+    if (this.status?.door.startsWith('Opening')) {
       this.log.debug('Door is opening!');
       return DoorState.Opening;
     }
 
+    if (this.status?.door.startsWith('Stop')) {
+      this.log.debug('Door is stopped!');
+      return DoorState.Stopped;
+    }
+
+    this.log.error(`[getDoorCurrentState] Unknown door status: ${this.status?.door}`);
+
     return DoorState.Error;
   };
 
-  public getDoorCurrentState = async (): Promise<number> => {
-    const doorState = await this.getDoorState();
+  public poolStatus = async () => {
+    await this.refreshStatus();
+
+    setTimeout(this.poolStatus, 2000);
+  };
+
+  public getDoorCurrentState = (): number => {
+    const doorState = this.getDoorState();
 
     // static readonly OPEN = 0;
     // static readonly CLOSED = 1;
@@ -160,11 +120,11 @@ export class CGDGarageDoor {
       [DoorState.Opening]: 2,
       [DoorState.Closing]: 3,
       [DoorState.Stopped]: 4,
-    }[doorState] || -1;
+    }[doorState];
   };
 
-  public getDoorTargetState = async (): Promise<number> => {
-    const doorState = await this.getDoorState();
+  public getDoorTargetState = (): number => {
+    const doorState = this.getDoorState();
 
     // static readonly OPEN = 0;
     // static readonly CLOSED = 1;
@@ -179,72 +139,90 @@ export class CGDGarageDoor {
   };
 
   public setDoorTargetState = async (value: number): Promise<void> => {
-    const doorState = await this.getDoorState();
-
     if (value === 0) {
-      if (doorState === DoorState.Opened) {
-        return;
-      }
-
       this.log.debug('Opening door...');
-      await this.instance.get(`/api.php?cmd=dev&mac=${this.device!.name}&mac_cmd=door_open`);
+      await this.run({ cmd: 'door', value: 'open', softValue: 'Opening' });
       this.log.debug('Opened door!');
-    } else {
-      if (doorState === DoorState.Closed) {
-        return;
-      }
 
-      this.log.debug('Closing door...');
-      await this.instance.get(`/api.php?cmd=dev&mac=${this.device!.name}&mac_cmd=door_close`);
-      this.log.debug('Closed door!');
+      return;
     }
+
+    if (value === 1) {
+      this.log.debug('Closing door...');
+      await this.run({ cmd: 'door', value: 'close', softValue: 'Closing' });
+      this.log.debug('Closed door!');
+
+      return;
+    }
+
+    this.log.error(`[setDoorTargetState] Unknown target state: ${value}`);
   };
 
-  public getLightbulb = async (): Promise<number> => {
-    await this.getDevice();
+  public getLightbulb = (): number => {
+    const lampState = this.status?.lamp;
 
-    const lampState = this.device!.data.lmp;
+    if (!lampState) {
+      this.log.error(`[getLightbulb] Unknown lamp state: ${lampState}`);
+      return -1;
+    }
 
     return {
-      [LampState.ON]: 1,
-      [LampState.OFF]: 0,
+      on: 1,
+      off: 0,
     }[lampState];
   };
 
   public setLightbulb = async (value): Promise<void> => {
-    const cmd = value ? 'lamp_on' : 'lamp_off';
+    if (value) {
+      this.log.debug('Turning on lightbulb...');
+      await this.run({ cmd: 'lamp', value: 'on' });
+      this.log.debug('Turned on lightbulb!');
 
-    this.log.debug(`Setting lightbulb to ${value ? 'on' : 'off'}...`);
-    await this.instance.get(`/api.php?cmd=dev&mac=${this.device!.name}&mac_cmd=${cmd}`);
-    this.log.debug(`Set lightbulb to ${value ? 'on' : 'off'}!`);
-  };
-
-  public getStream = async (): Promise<Stream> => {
-    if (!this.device) {
-      this.log.debug('Device not found, getting device...');
-      await this.getDevice();
+      return;
     }
 
-    const response = await this.instance.get(`/api.php?do=camvs&mac=${this.device!.name}&t=${new Date().getTime()}`, {
-      responseType: 'stream',
-    });
+    if (!value) {
+      this.log.debug('Turning off lightbulb...');
+      await this.run({ cmd: 'lamp', value: 'off' });
+      this.log.debug('Turned off lightbulb!');
 
-    this.log.debug('Got data!');
+      return;
+    }
 
-    const stream = response.data;
+    this.log.error(`[setLightbulb] Unknown value: ${value}`);
+  };
 
-    const keepAlive = setInterval(() => this.instance.get(`/api.php?do=camv&mac=${this.device!.name}&t=${new Date().getTime()}`), 4000);
+  public getVacation = (): number => {
+    const vacationState = this.status?.vacation;
 
-    stream.on('error', () => {
-      this.log.error('Stream error!');
-      clearInterval(keepAlive);
-    });
+    if (!vacationState) {
+      this.log.error(`[getVacation] Unknown vacation state: ${vacationState}`);
+      return -1;
+    }
 
-    stream.on('end', () => {
-      this.log.debug('Stream ended!');
-      clearInterval(keepAlive);
-    });
+    return {
+      on: 1,
+      off: 0,
+    }[vacationState];
+  };
 
-    return stream;
+  public setVacation = async (value): Promise<void> => {
+    if (value) {
+      this.log.debug('Turning on vacation...');
+      await this.run({ cmd: 'vacation', value: 'on' });
+      this.log.debug('Turned on vacation!');
+
+      return;
+    }
+
+    if (!value) {
+      this.log.debug('Turning off vacation...');
+      await this.run({ cmd: 'vacation', value: 'off' });
+      this.log.debug('Turned off vacation!');
+
+      return;
+    }
+
+    this.log.error(`[setVacation] Unknown value: ${value}`);
   };
 }

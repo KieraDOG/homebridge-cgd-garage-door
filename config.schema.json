@@ -5,13 +5,13 @@
   "schema": {
     "type": "object",
     "properties": {
-      "email": {
-        "title": "Email",
+      "deviceHostname": {
+        "title": "Device Hostname",
         "type": "string",
         "required": true
       },
-      "password": {
-        "title": "Password",
+      "deviceLocalKey": {
+        "title": "Device Local Key",
         "type": "string",
         "required": true
       }
