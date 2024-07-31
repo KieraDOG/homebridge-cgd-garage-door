@@ -1,4 +1,3 @@
-import retry from 'async-retry';
 import { Logging } from 'homebridge';
 
 interface Status {
@@ -37,7 +36,7 @@ export class CGDGarageDoor {
     this.config = config;
   }
 
-  private run = ({ cmd, value, softValue = value }) => retry(async () => {
+  private run = async ({ cmd, value, softValue = value }) => {
     this.log.debug(`Running command: ${cmd}=${value}`);
 
     const { deviceHostname, deviceLocalKey } = this.config;
@@ -48,12 +47,7 @@ export class CGDGarageDoor {
     }
 
     return response.json();
-  }, {
-    retries: 3,
-    onRetry: (error, attempt) => {
-      this.log.warn(`Attempt Running command: ${cmd}=${value}, ${attempt} failed: ${error.message}`);
-    },
-  });
+  };
 
   private refreshStatus = async () => {
     this.log.debug('Getting status...');
