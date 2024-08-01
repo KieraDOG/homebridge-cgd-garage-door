@@ -1,4 +1,5 @@
 import { Logging } from 'homebridge';
+import retry from './retry';
 
 interface Status {
   lamp: 'on' | 'off';
@@ -37,28 +38,39 @@ export class CGDGarageDoor {
   }
 
   private run = async ({ cmd, value, softValue = value }) => {
-    this.log.debug(`Running command: ${cmd}=${value}`);
-
     const { deviceHostname, deviceLocalKey } = this.config;
-    const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`);
 
-    const data = await response.json();
+    return retry(async () => {
+      const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`);
+      const data = await response.json();
 
-    this.log.debug(response.status.toString());
-    this.log.debug(JSON.stringify(data));
+      this.log.debug(`Running command: ${cmd}=${value}`);
 
-    if (!response.ok) {
-      this.log.error(`Failed to run command: ${cmd}=${value}`);
+      const level = response.ok ? 'debug' : 'error';
+      this.log[level](response.status.toString());
+      this.log[level](JSON.stringify(data));
 
-      return;
-    }
+      if (!response.ok) {
+        throw new Error(`Fetch failed with status ${response.status}, ${JSON.stringify(data)}`);
+      }
 
-    if (this.status?.[cmd]) {
-      this.log.debug(`Setting ${cmd} to ${softValue}`);
-      this.status[cmd] = softValue;
-    }
+      if (this.status?.[cmd]) {
+        this.log.debug(`Setting ${cmd} to ${softValue}`);
+        this.status[cmd] = softValue;
+      }
 
-    return data;
+      return data;
+    }, {
+      retries: 3,
+      onRetry: (error, retries) => {
+        this.log.warn(`Failed to run command[Retrying ${retries}]: ${cmd}=${value}`);
+        this.log.warn(JSON.stringify(error));
+      },
+      onFail: (error) => {
+        this.log.error(`Failed to run command: ${cmd}=${value}`);
+        this.log.error(JSON.stringify(error));
+      },
+    });
   };
 
   private refreshStatus = async () => {
@@ -72,7 +84,7 @@ export class CGDGarageDoor {
       return;
     }
 
-    this.status = data;
+    this.status = data as Status;
   };
 
   private getDoorState = (): DoorState => {
