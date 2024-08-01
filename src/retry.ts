@@ -5,11 +5,7 @@ interface Config {
 }
 
 const retry = async (fn: () => Promise<unknown>, config: Config) => {
-  const {
-    retries = 3,
-    onRetry,
-    onFail,
-  } = config;
+  const { retries, onRetry, onFail } = config;
 
   try {
     return await fn();
