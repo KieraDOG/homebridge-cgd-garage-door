@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.1.3...v1.2.0) (2024-08-01)
+
+
+### Features
+
+* Update garage door status pooling logic ([c1a2fc1](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/c1a2fc13a2f856d098da09398b3f1931c0657921))
+
 ## [1.1.3](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.1.2...v1.1.3) (2024-08-01)
 
 
