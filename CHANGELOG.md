@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.0.1...v1.1.0) (2024-08-01)
+
+
+### Features
+
+* Add retry logic for failed API requests ([3af071e](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/3af071e38e01e5d615681828333be0a996c69d5b))
+
 ## [1.0.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.0.0...v1.0.1) (2024-08-01)
 
 
