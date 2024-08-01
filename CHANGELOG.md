@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.0.0...v1.0.1) (2024-08-01)
+
+
+### Bug Fixes
+
+* stop bind event handler in configureAccessory and add missing config check ([#2](https://github.com/KieraDOG/homebridge-cgd-garage-door/issues/2)) ([d6ffaf7](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/d6ffaf7a1687fbe23c6150d41fdf50ce815939ea))
+
 # 1.0.0 (2024-07-31)
 
 
