@@ -16,8 +16,6 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
 
   private readonly accessories: PlatformAccessory[] = [];
 
-  private refreshInterval?: NodeJS.Timer;
-
   constructor(log: Logging, config: PlatformConfig, api: API) {
     this.log = log;
     this.api = api;
@@ -39,13 +37,6 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
       this.log('Did finish launching');
       this.addAccessory(deviceHostname, cgdGarageDoor);
     });
-
-    api.on(APIEvent.SHUTDOWN, () => {
-      this.log('SHUTDOWN');
-      if (this.refreshInterval) {
-        clearInterval(this.refreshInterval);
-      }
-    });
   }
 
   configureAccessory(accessory: PlatformAccessory): void {
@@ -54,7 +45,7 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
   }
 
   async addAccessory(name: string, cgdGarageDoor: CGDGarageDoor) {
-    await cgdGarageDoor.poolStatus();
+    await cgdGarageDoor.waitForStatus();
 
     this.log('Adding new accessory with name %s', name);
 
@@ -86,11 +77,11 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
     const garageDoorOpener = accessory.getService(this.api.hap.Service.GarageDoorOpener) || accessory.addService(new this.api.hap.Service.GarageDoorOpener(accessory.displayName));
 
     garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.CurrentDoorState)
-      .onGet(() => cgdGarageDoor.getDoorCurrentState());
+      .onGet(() => cgdGarageDoor.getCurrentDoorState());
 
     garageDoorOpener.getCharacteristic(this.api.hap.Characteristic.TargetDoorState)
-      .onGet(() => cgdGarageDoor.getDoorTargetState())
-      .onSet((value) => cgdGarageDoor.setDoorTargetState(+value));
+      .onGet(() => cgdGarageDoor.getTargetDoorState())
+      .onSet((value) => cgdGarageDoor.setTargetDoorState(+value));
 
     const lightbulb = accessory.getService(this.api.hap.Service.Lightbulb) || accessory.addService(new this.api.hap.Service.Lightbulb(accessory.displayName));
 
@@ -104,16 +95,19 @@ export class CGDCameraPlatform implements DynamicPlatformPlugin {
       .onGet(() => cgdGarageDoor.getVacation())
       .onSet((value) => cgdGarageDoor.setVacation(value));
 
-    this.refreshInterval = setInterval(() => {
+    cgdGarageDoor.onStatusUpdate(() => {
       garageDoorOpener
-        .getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(cgdGarageDoor.getDoorCurrentState());
+        .getCharacteristic(this.api.hap.Characteristic.CurrentDoorState).updateValue(cgdGarageDoor.getCurrentDoorState());
+
+      garageDoorOpener
+        .getCharacteristic(this.api.hap.Characteristic.TargetDoorState).updateValue(cgdGarageDoor.getTargetDoorState());
 
       lightbulb
         .getCharacteristic(this.api.hap.Characteristic.On).updateValue(cgdGarageDoor.getLightbulb());
 
       vacationSwitch
         .getCharacteristic(this.api.hap.Characteristic.On).updateValue(cgdGarageDoor.getVacation());
-    }, 2000);
+    });
 
     this.log('Garage Door Accessory %s configured!', accessory.displayName);
   }

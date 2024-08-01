@@ -27,14 +27,20 @@ enum DoorState {
   Error,
 }
 
+type StatusUpdateListener = () => void;
+
+
 export class CGDGarageDoor {
   private readonly log: Logging;
   private config: Config;
   private status?: Status;
+  private statusUpdateListener?: StatusUpdateListener;
 
   constructor(log: Logging, config: Config) {
     this.log = log;
     this.config = config;
+
+    this.poolStatus();
   }
 
   private run = async ({ cmd, value, softValue = value }) => {
@@ -63,8 +69,11 @@ export class CGDGarageDoor {
     }, {
       retries: 3,
       onRetry: (error, retries) => {
-        this.log.warn(`Failed to run command[Retrying ${retries}]: ${cmd}=${value}`);
+        this.log.warn(`Failed to run command [${retries} retries]: ${cmd}=${value}`);
         this.log.warn(JSON.stringify(error));
+      },
+      onRecover: (retries) => {
+        this.log.info(`Recovered to run command [${retries} retries]: ${cmd}=${value}`);
       },
       onFail: (error) => {
         this.log.error(`Failed to run command: ${cmd}=${value}`);
@@ -85,6 +94,13 @@ export class CGDGarageDoor {
     }
 
     this.status = data as Status;
+  };
+
+  private poolStatus = async () => {
+    await this.refreshStatus();
+    this.statusUpdateListener?.();
+
+    setTimeout(this.poolStatus, 2000);
   };
 
   private getDoorState = (): DoorState => {
@@ -108,25 +124,38 @@ export class CGDGarageDoor {
       return DoorState.Stopped;
     }
 
-    this.log.error(`[getDoorCurrentState] Unknown door status: ${this.status?.door}`);
+    this.log.error(`[getDoorState] Unknown door status: ${this.status?.door}`);
 
     return DoorState.Error;
   };
 
-  public poolStatus = async () => {
-    await this.refreshStatus();
-
-    setTimeout(this.poolStatus, 2000);
+  public onStatusUpdate = (listener: StatusUpdateListener) => {
+    this.statusUpdateListener = listener;
   };
 
-  public getDoorCurrentState = (): number => {
+  public waitForStatus = () => new Promise<void>((resolve) => {
+    this.log.info('Pulse - Ping...');
+    const interval = setInterval(() => {
+      if (this.status) {
+        this.log.info('Pulse - Pong!');
+        clearInterval(interval);
+        resolve();
+      }
+    }, 1000);
+  });
+
+  public getCurrentDoorState = (): number => {
     const doorState = this.getDoorState();
 
-    // static readonly OPEN = 0;
-    // static readonly CLOSED = 1;
-    // static readonly OPENING = 2;
-    // static readonly CLOSING = 3;
-    // static readonly STOPPED = 4;
+    // export declare class CurrentDoorState extends Characteristic {
+    //   static readonly UUID: string;
+    //   static readonly OPEN = 0;
+    //   static readonly CLOSED = 1;
+    //   static readonly OPENING = 2;
+    //   static readonly CLOSING = 3;
+    //   static readonly STOPPED = 4;
+    //   constructor();
+    // }
 
     if (doorState === DoorState.Error) {
       this.log.error(`[getDoorCurrentState] Unknown door state: ${doorState}`);
@@ -142,11 +171,15 @@ export class CGDGarageDoor {
     }[doorState];
   };
 
-  public getDoorTargetState = (): number => {
+  public getTargetDoorState = (): number => {
     const doorState = this.getDoorState();
 
-    // static readonly OPEN = 0;
-    // static readonly CLOSED = 1;
+    // export declare class TargetDoorState extends Characteristic {
+    //   static readonly UUID: string;
+    //   static readonly OPEN = 0;
+    //   static readonly CLOSED = 1;
+    //   constructor();
+    // }
 
     if (doorState === DoorState.Error) {
       this.log.error(`[getDoorTargetState] Unknown door state: ${doorState}`);
@@ -162,7 +195,7 @@ export class CGDGarageDoor {
     }[doorState];
   };
 
-  public setDoorTargetState = async (value: number): Promise<void> => {
+  public setTargetDoorState = async (value: number): Promise<void> => {
     if (value === 0) {
       this.log.debug('Opening door...');
       await this.run({ cmd: 'door', value: 'open', softValue: 'Opening' });
