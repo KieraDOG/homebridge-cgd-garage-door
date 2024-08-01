@@ -93,13 +93,21 @@ export class CGDGarageDoor {
       return;
     }
 
+    if (this.status && this.isStatusEqual(this.status, data as Status)) {
+      return;
+    }
+
     this.status = data as Status;
+    this.statusUpdateListener?.();
+  };
+
+  private isStatusEqual = (a: Status, b: Status) => {
+    const values = ['lamp', 'door', 'vacation'];
+    return values.every((value) => a[value] === b[value]);
   };
 
   private poolStatus = async () => {
     await this.refreshStatus();
-    this.statusUpdateListener?.();
-
     setTimeout(this.poolStatus, 2000);
   };
 
