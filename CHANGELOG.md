@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.1.2...v1.1.3) (2024-08-01)
+
+
+### Bug Fixes
+
+* update node version requirement to >=18.0.0 ([b385857](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/b385857b7d3c10817c49649da9824e0f3627f5d6))
+
 ## [1.1.2](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.1.1...v1.1.2) (2024-08-01)
 
 
