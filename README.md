@@ -1,5 +1,11 @@
 # Homebridge Centurion Garage Doors
 
+[![Publish](https://github.com/KieraDOG/homebridge-cgd-garage-door/actions/workflows/publish.yml/badge.svg)](https://github.com/KieraDOG/homebridge-cgd-garage-door/actions/workflows/publish.yml)
+[![npm](https://img.shields.io/npm/v/homebridge-cgd-garage-door/latest?label=latest)](https://www.npmjs.com/package/homebridge-cgd-garage-door)
+[![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![semantic-release](https://img.shields.io/badge/semantic--release-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
+
+
 This is a Homebridge plugin that allows you to control Centurion Garage Doors.
 
 ## Features
