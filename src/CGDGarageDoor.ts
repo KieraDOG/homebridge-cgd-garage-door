@@ -29,12 +29,12 @@ enum DoorState {
 
 type StatusUpdateListener = () => void;
 
-
 export class CGDGarageDoor {
   private readonly log: Logging;
   private config: Config;
   private status?: Status;
   private statusUpdateListener?: StatusUpdateListener;
+  private isUpdating = false;
 
   constructor(log: Logging, config: Config) {
     this.log = log;
@@ -44,13 +44,25 @@ export class CGDGarageDoor {
   }
 
   private run = async ({ cmd, value, softValue = value }) => {
-    const { deviceHostname, deviceLocalKey } = this.config;
+    this.log.debug(`Setting ${cmd} to ${softValue}`);
+    let oldStatus: Status;
+
+    if (this.status?.[cmd]) {
+      oldStatus = { ...this.status };
+      this.status[cmd] = softValue;
+
+      if (!this.isStatusEqual(oldStatus, this.status)) {
+        this.log.debug(`Updating ${cmd} to ${softValue}`);
+        this.statusUpdateListener?.();
+      }
+    }
 
     return retry(async () => {
+      this.log.debug(`Running command: ${cmd}=${value}`);
+
+      const { deviceHostname, deviceLocalKey } = this.config;
       const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`);
       const data = await response.json();
-
-      this.log.debug(`Running command: ${cmd}=${value}`);
 
       const level = response.ok ? 'debug' : 'error';
       this.log[level](response.status.toString());
@@ -58,11 +70,6 @@ export class CGDGarageDoor {
 
       if (!response.ok) {
         throw new Error(`Fetch failed with status ${response.status}, ${JSON.stringify(data)}`);
-      }
-
-      if (this.status?.[cmd]) {
-        this.log.debug(`Setting ${cmd} to ${softValue}`);
-        this.status[cmd] = softValue;
       }
 
       return data;
@@ -78,11 +85,35 @@ export class CGDGarageDoor {
       onFail: (error) => {
         this.log.error(`Failed to run command: ${cmd}=${value}`);
         this.log.error(JSON.stringify(error));
+
+        if (oldStatus) {
+          this.log.debug(`Reverting ${cmd}`);
+          this.status = oldStatus;
+          this.statusUpdateListener?.();
+        }
       },
     });
   };
 
+  private withIsUpdating = async <T>(fn: () => Promise<T>): Promise<void> => {
+    this.isUpdating = true;
+    this.log.debug('Updating is in progress...');
+    await fn();
+
+    setTimeout(() => {
+      this.isUpdating = false;
+      this.log.debug('Updating is finished');
+    }, 2000);
+  };
+
   private refreshStatus = async () => {
+    this.log.debug(`Refreshing status... ${this.isUpdating}`);
+    if (this.isUpdating) {
+      this.log.debug('Skip');
+
+      return;
+    }
+
     this.log.debug('Getting status...');
 
     const data = await this.run({ cmd: 'status', value: 'json', softValue: (new Date()).toLocaleString() });
@@ -108,7 +139,7 @@ export class CGDGarageDoor {
 
   private poolStatus = async () => {
     await this.refreshStatus();
-    setTimeout(this.poolStatus, 2000);
+    setTimeout(this.poolStatus, 5000);
   };
 
   private getDoorState = (): DoorState => {
@@ -204,23 +235,19 @@ export class CGDGarageDoor {
   };
 
   public setTargetDoorState = async (value: number): Promise<void> => {
-    if (value === 0) {
-      this.log.debug('Opening door...');
-      await this.run({ cmd: 'door', value: 'open', softValue: 'Opening' });
-      this.log.debug('Opened door!');
+    this.withIsUpdating(async () => {
+      if (value === 0) {
+        this.log.debug('Opening door...');
+        await this.run({ cmd: 'door', value: 'open', softValue: 'Opening' });
+        this.log.debug('Opened door!');
+      }
 
-      return;
-    }
-
-    if (value === 1) {
-      this.log.debug('Closing door...');
-      await this.run({ cmd: 'door', value: 'close', softValue: 'Closing' });
-      this.log.debug('Closed door!');
-
-      return;
-    }
-
-    this.log.error(`[setDoorTargetState] Unknown target state: ${value}`);
+      if (value === 1) {
+        this.log.debug('Closing door...');
+        await this.run({ cmd: 'door', value: 'close', softValue: 'Closing' });
+        this.log.debug('Closed door!');
+      }
+    });
   };
 
   public getLightbulb = (): number => {
@@ -238,23 +265,19 @@ export class CGDGarageDoor {
   };
 
   public setLightbulb = async (value): Promise<void> => {
-    if (value) {
-      this.log.debug('Turning on lightbulb...');
-      await this.run({ cmd: 'lamp', value: 'on' });
-      this.log.debug('Turned on lightbulb!');
+    this.withIsUpdating(async () => {
+      if (value) {
+        this.log.debug('Turning on lightbulb...');
+        await this.run({ cmd: 'lamp', value: 'on' });
+        this.log.debug('Turned on lightbulb!');
+      }
 
-      return;
-    }
-
-    if (!value) {
-      this.log.debug('Turning off lightbulb...');
-      await this.run({ cmd: 'lamp', value: 'off' });
-      this.log.debug('Turned off lightbulb!');
-
-      return;
-    }
-
-    this.log.error(`[setLightbulb] Unknown value: ${value}`);
+      if (!value) {
+        this.log.debug('Turning off lightbulb...');
+        await this.run({ cmd: 'lamp', value: 'off' });
+        this.log.debug('Turned off lightbulb!');
+      }
+    });
   };
 
   public getVacation = (): number => {
@@ -272,22 +295,18 @@ export class CGDGarageDoor {
   };
 
   public setVacation = async (value): Promise<void> => {
-    if (value) {
-      this.log.debug('Turning on vacation...');
-      await this.run({ cmd: 'vacation', value: 'on' });
-      this.log.debug('Turned on vacation!');
+    this.withIsUpdating(async () => {
+      if (value) {
+        this.log.debug('Turning on vacation...');
+        await this.run({ cmd: 'vacation', value: 'on' });
+        this.log.debug('Turned on vacation!');
+      }
 
-      return;
-    }
-
-    if (!value) {
-      this.log.debug('Turning off vacation...');
-      await this.run({ cmd: 'vacation', value: 'off' });
-      this.log.debug('Turned off vacation!');
-
-      return;
-    }
-
-    this.log.error(`[setVacation] Unknown value: ${value}`);
+      if (!value) {
+        this.log.debug('Turning off vacation...');
+        await this.run({ cmd: 'vacation', value: 'off' });
+        this.log.debug('Turned off vacation!');
+      }
+    });
   };
 }
