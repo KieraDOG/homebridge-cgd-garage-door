@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.3.0...v1.4.0) (2024-08-08)
+
+
+### Features
+
+* progressive update value ([87bf84d](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/87bf84d255c637a5097cd8568d9d9beec19417f3))
+
 # [1.3.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.2.0...v1.3.0) (2024-08-01)
 
 
