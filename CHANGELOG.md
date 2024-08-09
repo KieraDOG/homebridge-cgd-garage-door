@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.4.0...v1.5.0) (2024-08-09)
+
+
+### Features
+
+* Add keep-alive agent for HTTP requests ([b6f21f4](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/b6f21f432e3c0ccf2c83720f81cc39ea4564064e))
+
 # [1.4.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.3.0...v1.4.0) (2024-08-08)
 
 
