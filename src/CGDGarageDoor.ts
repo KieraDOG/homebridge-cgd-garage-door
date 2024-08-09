@@ -1,5 +1,8 @@
 import { Logging } from 'homebridge';
+import http from 'http';
 import retry from './retry';
+
+const httpAgent = new http.Agent({ keepAlive: true });
 
 interface Status {
   lamp: 'on' | 'off';
@@ -61,7 +64,12 @@ export class CGDGarageDoor {
       this.log.debug(`Running command: ${cmd}=${value}`);
 
       const { deviceHostname, deviceLocalKey } = this.config;
-      const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`);
+      const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`, {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        agent: httpAgent,
+      });
+
       const data = await response.json();
 
       const level = response.ok ? 'debug' : 'error';
