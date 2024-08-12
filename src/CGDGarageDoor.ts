@@ -145,13 +145,19 @@ export class CGDGarageDoor {
   private refreshStatus = async () => {
     this.log.debug(`Refreshing status... ${this.isUpdating}`);
     if (this.isUpdating) {
-      this.log.debug('Skip');
+      this.log.debug('Skip refreshing status because it is updating');
 
       return;
     }
 
     const status = await this.getStatus();
-    if (!status || this.isStatusEqual(status)) {
+    if (this.isStatusEqual(status)) {
+      this.log.debug('Skip updating status because it is equal');
+      return;
+    }
+
+    if (this.isUpdating) {
+      this.log.info('Skip updating status because it is updating');
       return;
     }
 
@@ -159,9 +165,9 @@ export class CGDGarageDoor {
     this.statusUpdateListener?.();
   };
 
-  private isStatusEqual = (data: Status) => {
+  private isStatusEqual = (data?: Status) => {
     const values = ['lamp', 'door', 'vacation'];
-    return values.every((value) => this.status?.[value] === data[value]);
+    return values.every((value) => this.status?.[value] === data?.[value]);
   };
 
   private poolStatus = async () => {
