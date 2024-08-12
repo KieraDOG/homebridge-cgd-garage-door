@@ -1,3 +1,10 @@
+# [1.7.0-beta.2](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.1...v1.7.0-beta.2) (2024-08-12)
+
+
+### Bug Fixes
+
+* only remove the item from the if it is done ([1751cab](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/1751cab4663707258f698473d4c4b0f013eda628))
+
 # [1.7.0-beta.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.1...v1.7.0-beta.1) (2024-08-12)
 
 
