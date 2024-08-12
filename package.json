@@ -1,7 +1,7 @@
 {
   "displayName": "CGD Garage Door",
   "name": "homebridge-cgd-garage-door",
-  "version": "1.7.0-beta.4",
+  "version": "1.7.0-beta.5",
   "description": "A Homebridge plugin to control Centurion Garage Doors using the official Centurion Garage Door Smartphone App integration. This plugin allows you to open, close, and monitor the status of your Centurion Garage Door, control the Lock Mode, and turn the lights on and off.",
   "homepage": "https://github.com/KieraDOG/homebridge-cgd-garage-door",
   "license": "MIT",

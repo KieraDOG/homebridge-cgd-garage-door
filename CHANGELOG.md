@@ -1,3 +1,10 @@
+# [1.7.0-beta.5](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.4...v1.7.0-beta.5) (2024-08-12)
+
+
+### Bug Fixes
+
+* fix fn has been called twice ([43d8af6](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/43d8af6cabcc7a972012e12da2bed9c622eace55))
+
 # [1.7.0-beta.4](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.3...v1.7.0-beta.4) (2024-08-12)
 
 
