@@ -1,3 +1,10 @@
+# [1.7.0-beta.3](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.2...v1.7.0-beta.3) (2024-08-12)
+
+
+### Bug Fixes
+
+* not filter the 1st item from the runQ as it is still processing ([9180bc0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/9180bc0aa59558b0fdcbbc3b6098e02cd1fba426))
+
 # [1.7.0-beta.2](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.1...v1.7.0-beta.2) (2024-08-12)
 
 
