@@ -41,7 +41,10 @@ export class CGDGarageDoor {
 
   private withRunQ = async (key: string, fn: () => Promise<unknown>) => new Promise((resolve, reject) => {
     this.log.debug('Adding to queue');
-    this.runQ = this.runQ.filter((item) => item.name !== key);
+
+    const [item, ...rest] = this.runQ;
+    this.runQ = [item, ...rest.filter((item) => item.name !== key)];
+
     this.runQ.push({
       name: key,
       fn: async () => {
@@ -55,13 +58,13 @@ export class CGDGarageDoor {
     });
 
     if (this.runQ.length === 1) {
-      this.log.debug('Start processing queue');
+      this.log.debug('Start RunQ');
       this.processRunQ();
     }
   });
 
   private processRunQ = async () => {
-    this.log.debug('Queue length:', this.runQ.length);
+    this.log.debug('Start Processing RunQ', this.runQ.length);
     if (this.runQ.length === 0) {
       this.log.debug('Queue is empty');
       return;
@@ -73,6 +76,7 @@ export class CGDGarageDoor {
       await item.fn();
     } finally {
       this.runQ.shift();
+      this.log.debug('Finished Processing RunQ');
       this.processRunQ();
     }
   };
@@ -100,7 +104,7 @@ export class CGDGarageDoor {
         }
       }
 
-      const result = await retry(async () => {
+      return retry(async () => {
         this.log.debug(`Running command: ${cmd}=${value}`);
 
         const { deviceHostname, deviceLocalKey } = this.config;
