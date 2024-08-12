@@ -42,8 +42,10 @@ export class CGDGarageDoor {
   private withRunQ = async (key: string, fn: () => Promise<unknown>) => new Promise((resolve, reject) => {
     this.log.debug('Adding to queue');
 
-    const [item, ...rest] = this.runQ;
-    this.runQ = [item, ...rest.filter((item) => item.name !== key)];
+    if (this.runQ.length > 1) {
+      const [item, ...rest] = this.runQ;
+      this.runQ = [item, ...rest.filter((item) => item.name !== key)];
+    }
 
     this.runQ.push({
       name: key,
