@@ -67,11 +67,12 @@ export class CGDGarageDoor {
       return;
     }
 
-    const item = this.runQ.shift()!;
+    const item = this.runQ[0];
 
     try {
       await item.fn();
     } finally {
+      this.runQ.shift();
       this.processRunQ();
     }
   };
