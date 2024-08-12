@@ -92,7 +92,7 @@ export class CGDGarageDoor {
     softValue?: string;
     until?: () => Promise<boolean>;
   }): Promise<unknown> => {
-    const fn = async () => {
+    const fn = () => {
       this.log.debug(`Setting ${cmd} to ${softValue}`);
       let oldStatus: Status;
 
@@ -152,18 +152,13 @@ export class CGDGarageDoor {
           }
         },
       });
-
-      return result;
     };
 
-    let result: unknown;
     if (until) {
-      result = await this.withRunQ(cmd, fn);
+      return this.withRunQ(cmd, fn);
     }
 
-    result = await fn();
-
-    return result;
+    return fn();
   };
 
   private withIsUpdating = async <T>(fn: () => Promise<T>): Promise<void> => {
