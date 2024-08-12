@@ -15,3 +15,6 @@ nodemon.json
 
 # Dependency directories
 node_modules/
+
+# Release configuration
+.releaserc
