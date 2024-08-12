@@ -6,11 +6,17 @@ interface Config {
   onFail: (error: unknown) => void;
 }
 
-const retry = async (fn: () => Promise<unknown>, config: Config) => {
+const retry = async (fn: () => Promise<unknown>, until: () => Promise<unknown>, config: Config) => {
   const { retries, onRetry, onRecover, onFail, isRetry } = config;
 
   try {
     const data = await fn();
+
+    const result = await until();
+
+    if (!result) {
+      throw new Error('Failed to reach the expected state');
+    }
 
     if (isRetry) {
       onRecover(retries);
@@ -24,7 +30,7 @@ const retry = async (fn: () => Promise<unknown>, config: Config) => {
 
     onRetry(error, retries);
 
-    return retry(fn, {
+    return retry(fn, until, {
       ...config,
       isRetry: true,
       retries: retries - 1,

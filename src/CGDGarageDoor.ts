@@ -1,5 +1,6 @@
 import { Logging } from 'homebridge';
 import http from 'http';
+import parseDoorState, { DoorState } from './parseDoorState';
 import retry from './retry';
 
 const httpAgent = new http.Agent({ keepAlive: true });
@@ -21,15 +22,6 @@ interface Config {
   deviceLocalKey: string;
 }
 
-enum DoorState {
-  Closed,
-  Opened,
-  Stopped,
-  Closing,
-  Opening,
-  Error,
-}
-
 type StatusUpdateListener = () => void;
 
 export class CGDGarageDoor {
@@ -46,7 +38,14 @@ export class CGDGarageDoor {
     this.poolStatus();
   }
 
-  private run = async ({ cmd, value, softValue = value }) => {
+  private run = async ({
+    cmd, value,
+    softValue = value,
+    until = async () => {
+      this.log.debug('Running without until...');
+      return true;
+    },
+  }) => {
     this.log.debug(`Setting ${cmd} to ${softValue}`);
     let oldStatus: Status;
 
@@ -54,7 +53,7 @@ export class CGDGarageDoor {
       oldStatus = { ...this.status };
       this.status[cmd] = softValue;
 
-      if (!this.isStatusEqual(oldStatus, this.status)) {
+      if (!this.isStatusEqual(oldStatus)) {
         this.log.debug(`Updating ${cmd} to ${softValue}`);
         this.statusUpdateListener?.();
       }
@@ -81,18 +80,22 @@ export class CGDGarageDoor {
       }
 
       return data;
-    }, {
+    }, until, {
       retries: 3,
       onRetry: (error, retries) => {
         this.log.warn(`Failed to run command [${retries} retries]: ${cmd}=${value}`);
-        this.log.warn(JSON.stringify(error));
+        if (error instanceof Error) {
+          this.log.warn(`Error: ${error.message}`);
+        }
       },
       onRecover: (retries) => {
         this.log.info(`Recovered to run command [${retries} retries]: ${cmd}=${value}`);
       },
       onFail: (error) => {
         this.log.error(`Failed to run command: ${cmd}=${value}`);
-        this.log.error(JSON.stringify(error));
+        if (error instanceof Error) {
+          this.log.error(`Error: ${error.message}`);
+        }
 
         if (oldStatus) {
           this.log.debug(`Reverting ${cmd}`);
@@ -106,12 +109,37 @@ export class CGDGarageDoor {
   private withIsUpdating = async <T>(fn: () => Promise<T>): Promise<void> => {
     this.isUpdating = true;
     this.log.debug('Updating is in progress...');
+
     await fn();
 
-    setTimeout(() => {
-      this.isUpdating = false;
-      this.log.debug('Updating is finished');
-    }, 2000);
+    this.isUpdating = false;
+    this.log.debug('Updating is finished');
+  };
+
+  private until = (fn: (status: Status) => boolean) => async (): Promise<boolean> => {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const status = await this.getStatus();
+    this.log.debug(`Checking status... ${JSON.stringify(status)}`);
+
+    return !!status && fn(status);
+  };
+
+  private getStatus = async (): Promise<Status | undefined> => {
+    this.log.debug('Getting status...');
+
+    const data = await this.run({
+      cmd: 'status', value: 'json',
+      softValue: (new Date()).toLocaleString(),
+    });
+
+    if (!data) {
+      this.log.error('Can not get status!');
+
+      return;
+    }
+
+    return data as Status;
   };
 
   private refreshStatus = async () => {
@@ -122,58 +150,23 @@ export class CGDGarageDoor {
       return;
     }
 
-    this.log.debug('Getting status...');
-
-    const data = await this.run({ cmd: 'status', value: 'json', softValue: (new Date()).toLocaleString() });
-
-    if (!data) {
-      this.log.error('Can not get status!');
-
+    const status = await this.getStatus();
+    if (!status || this.isStatusEqual(status)) {
       return;
     }
 
-    if (this.status && this.isStatusEqual(this.status, data as Status)) {
-      return;
-    }
-
-    this.status = data as Status;
+    this.status = status;
     this.statusUpdateListener?.();
   };
 
-  private isStatusEqual = (a: Status, b: Status) => {
+  private isStatusEqual = (data: Status) => {
     const values = ['lamp', 'door', 'vacation'];
-    return values.every((value) => a[value] === b[value]);
+    return values.every((value) => this.status?.[value] === data[value]);
   };
 
   private poolStatus = async () => {
     await this.refreshStatus();
     setTimeout(this.poolStatus, 5000);
-  };
-
-  private getDoorState = (): DoorState => {
-    if (this.status?.door.startsWith('Closed')) {
-      return DoorState.Closed;
-    }
-
-    if (this.status?.door.startsWith('Opened')) {
-      return DoorState.Opened;
-    }
-
-    if (this.status?.door.startsWith('Closing')) {
-      return DoorState.Closing;
-    }
-
-    if (this.status?.door.startsWith('Opening')) {
-      return DoorState.Opening;
-    }
-
-    if (this.status?.door.startsWith('Stop')) {
-      return DoorState.Stopped;
-    }
-
-    this.log.error(`[getDoorState] Unknown door status: ${this.status?.door}`);
-
-    return DoorState.Error;
   };
 
   public onStatusUpdate = (listener: StatusUpdateListener) => {
@@ -192,7 +185,7 @@ export class CGDGarageDoor {
   });
 
   public getCurrentDoorState = (): number => {
-    const doorState = this.getDoorState();
+    const doorState = parseDoorState(this.status?.door);
 
     // export declare class CurrentDoorState extends Characteristic {
     //   static readonly UUID: string;
@@ -219,7 +212,7 @@ export class CGDGarageDoor {
   };
 
   public getTargetDoorState = (): number => {
-    const doorState = this.getDoorState();
+    const doorState = parseDoorState(this.status?.door);
 
     // export declare class TargetDoorState extends Characteristic {
     //   static readonly UUID: string;
@@ -246,13 +239,21 @@ export class CGDGarageDoor {
     this.withIsUpdating(async () => {
       if (value === 0) {
         this.log.debug('Opening door...');
-        await this.run({ cmd: 'door', value: 'open', softValue: 'Opening' });
+        await this.run({
+          cmd: 'door', value: 'open',
+          softValue: 'Opening',
+          until: this.until((status) => [DoorState.Opened, DoorState.Opening, DoorState.Stopped].includes(parseDoorState(status.door))),
+        });
         this.log.debug('Opened door!');
       }
 
       if (value === 1) {
         this.log.debug('Closing door...');
-        await this.run({ cmd: 'door', value: 'close', softValue: 'Closing' });
+        await this.run({
+          cmd: 'door', value: 'close',
+          softValue: 'Closing',
+          until: this.until((status) => [DoorState.Closed, DoorState.Closing, DoorState.Stopped].includes(parseDoorState(status.door))),
+        });
         this.log.debug('Closed door!');
       }
     });
@@ -276,13 +277,19 @@ export class CGDGarageDoor {
     this.withIsUpdating(async () => {
       if (value) {
         this.log.debug('Turning on lightbulb...');
-        await this.run({ cmd: 'lamp', value: 'on' });
+        await this.run({
+          cmd: 'lamp', value: 'on',
+          until: this.until((status) => status.lamp === 'on'),
+        });
         this.log.debug('Turned on lightbulb!');
       }
 
       if (!value) {
         this.log.debug('Turning off lightbulb...');
-        await this.run({ cmd: 'lamp', value: 'off' });
+        await this.run({
+          cmd: 'lamp', value: 'off',
+          until: this.until((status) => status.lamp === 'off'),
+        });
         this.log.debug('Turned off lightbulb!');
       }
     });
@@ -306,13 +313,19 @@ export class CGDGarageDoor {
     this.withIsUpdating(async () => {
       if (value) {
         this.log.debug('Turning on vacation...');
-        await this.run({ cmd: 'vacation', value: 'on' });
+        await this.run({
+          cmd: 'vacation', value: 'on',
+          until: this.until((status) => status.vacation === 'on'),
+        });
         this.log.debug('Turned on vacation!');
       }
 
       if (!value) {
         this.log.debug('Turning off vacation...');
-        await this.run({ cmd: 'vacation', value: 'off' });
+        await this.run({
+          cmd: 'vacation', value: 'off',
+          until: this.until((status) => status.vacation === 'off'),
+        });
         this.log.debug('Turned off vacation!');
       }
     });
