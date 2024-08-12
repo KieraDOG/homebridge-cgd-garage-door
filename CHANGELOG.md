@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.0...v1.6.1) (2024-08-12)
+
+
+### Bug Fixes
+
+* Improve status refreshing logic ([dc782ef](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/dc782ef54aa7e2fb9f4b6c0460a543587e50637a))
+
 # [1.6.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.5.0...v1.6.0) (2024-08-12)
 
 
