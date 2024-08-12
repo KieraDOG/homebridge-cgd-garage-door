@@ -1,3 +1,10 @@
+# [1.7.0-beta.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.1...v1.7.0-beta.1) (2024-08-12)
+
+
+### Features
+
+* Add queue system for command execution ([57cafd0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/57cafd0766b07725eb96fdf936dc8cb1e7722a08))
+
 ## [1.6.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.0...v1.6.1) (2024-08-12)
 
 
