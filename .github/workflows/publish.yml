@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - beta
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   publish:
