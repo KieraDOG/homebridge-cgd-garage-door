@@ -1,3 +1,38 @@
+# [1.7.0-beta.5](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.4...v1.7.0-beta.5) (2024-08-12)
+
+
+### Bug Fixes
+
+* fix fn has been called twice ([43d8af6](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/43d8af6cabcc7a972012e12da2bed9c622eace55))
+
+# [1.7.0-beta.4](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.3...v1.7.0-beta.4) (2024-08-12)
+
+
+### Bug Fixes
+
+* only filter the rest of the q when the q has more than one items ([526c3a0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/526c3a0fbb3816be5ac3b72c58b6e2578ba6c394))
+
+# [1.7.0-beta.3](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.2...v1.7.0-beta.3) (2024-08-12)
+
+
+### Bug Fixes
+
+* not filter the 1st item from the runQ as it is still processing ([9180bc0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/9180bc0aa59558b0fdcbbc3b6098e02cd1fba426))
+
+# [1.7.0-beta.2](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.1...v1.7.0-beta.2) (2024-08-12)
+
+
+### Bug Fixes
+
+* only remove the item from the if it is done ([1751cab](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/1751cab4663707258f698473d4c4b0f013eda628))
+
+# [1.7.0-beta.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.1...v1.7.0-beta.1) (2024-08-12)
+
+
+### Features
+
+* Add queue system for command execution ([57cafd0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/57cafd0766b07725eb96fdf936dc8cb1e7722a08))
+
 ## [1.6.1](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.0...v1.6.1) (2024-08-12)
 
 

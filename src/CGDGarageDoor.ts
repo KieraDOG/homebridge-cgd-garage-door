@@ -30,6 +30,7 @@ export class CGDGarageDoor {
   private status?: Status;
   private statusUpdateListener?: StatusUpdateListener;
   private isUpdating = false;
+  private runQ: { name: string; fn: () => Promise<unknown>}[] = [];
 
   constructor(log: Logging, config: Config) {
     this.log = log;
@@ -38,72 +39,126 @@ export class CGDGarageDoor {
     this.poolStatus();
   }
 
-  private run = async ({
-    cmd, value,
-    softValue = value,
-    until = async () => {
-      this.log.debug('Running without until...');
-      return true;
-    },
-  }) => {
-    this.log.debug(`Setting ${cmd} to ${softValue}`);
-    let oldStatus: Status;
+  private withRunQ = async (key: string, fn: () => Promise<unknown>) => new Promise((resolve, reject) => {
+    this.log.debug('Adding to queue');
 
-    if (this.status?.[cmd]) {
-      oldStatus = { ...this.status };
-      this.status[cmd] = softValue;
-
-      if (!this.isStatusEqual(oldStatus)) {
-        this.log.debug(`Updating ${cmd} to ${softValue}`);
-        this.statusUpdateListener?.();
-      }
+    if (this.runQ.length > 1) {
+      const [item, ...rest] = this.runQ;
+      this.runQ = [item, ...rest.filter((item) => item.name !== key)];
     }
 
-    return retry(async () => {
-      this.log.debug(`Running command: ${cmd}=${value}`);
-
-      const { deviceHostname, deviceLocalKey } = this.config;
-      const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`, {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        agent: httpAgent,
-      });
-
-      const data = await response.json();
-
-      const level = response.ok ? 'debug' : 'error';
-      this.log[level](response.status.toString());
-      this.log[level](JSON.stringify(data));
-
-      if (!response.ok) {
-        throw new Error(`Fetch failed with status ${response.status}, ${JSON.stringify(data)}`);
-      }
-
-      return data;
-    }, until, {
-      retries: 3,
-      onRetry: (error, retries) => {
-        this.log.warn(`Failed to run command [${retries} retries]: ${cmd}=${value}`);
-        if (error instanceof Error) {
-          this.log.warn(`Error: ${error.message}`);
-        }
-      },
-      onRecover: (retries) => {
-        this.log.info(`Recovered to run command [${retries} retries]: ${cmd}=${value}`);
-      },
-      onFail: (error) => {
-        this.log.error(`Failed to run command: ${cmd}=${value}`);
-        if (error instanceof Error) {
-          this.log.error(`Error: ${error.message}`);
-        }
-
-        if (oldStatus) {
-          this.log.debug(`Reverting ${cmd}`);
-          this.status = oldStatus;
-          this.statusUpdateListener?.();
+    this.runQ.push({
+      name: key,
+      fn: async () => {
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (error) {
+          reject(error);
         }
       },
     });
+
+    if (this.runQ.length === 1) {
+      this.log.debug('Start RunQ');
+      this.processRunQ();
+    }
+  });
+
+  private processRunQ = async () => {
+    this.log.debug('Start Processing RunQ', this.runQ.length);
+    if (this.runQ.length === 0) {
+      this.log.debug('Queue is empty');
+      return;
+    }
+
+    const item = this.runQ[0];
+
+    try {
+      await item.fn();
+    } finally {
+      this.runQ.shift();
+      this.log.debug('Finished Processing RunQ');
+      this.processRunQ();
+    }
+  };
+
+  private run = async ({
+    cmd, value,
+    softValue = value,
+    until,
+  }: {
+    cmd: string; value: string;
+    softValue?: string;
+    until?: () => Promise<boolean>;
+  }): Promise<unknown> => {
+    const fn = () => {
+      this.log.debug(`Setting ${cmd} to ${softValue}`);
+      let oldStatus: Status;
+
+      if (this.status?.[cmd]) {
+        oldStatus = { ...this.status };
+        this.status[cmd] = softValue;
+
+        if (!this.isStatusEqual(oldStatus)) {
+          this.log.debug(`Updating ${cmd} to ${softValue}`);
+          this.statusUpdateListener?.();
+        }
+      }
+
+      return retry(async () => {
+        this.log.debug(`Running command: ${cmd}=${value}`);
+
+        const { deviceHostname, deviceLocalKey } = this.config;
+        const response = await fetch(`http://${deviceHostname}/api?key=${deviceLocalKey}&${cmd}=${value}`, {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+          agent: httpAgent,
+        });
+
+        const data = await response.json();
+
+        const level = response.ok ? 'debug' : 'error';
+        this.log[level](response.status.toString());
+        this.log[level](JSON.stringify(data));
+
+        if (!response.ok) {
+          throw new Error(`Fetch failed with status ${response.status}, ${JSON.stringify(data)}`);
+        }
+
+        return data;
+      }, {
+        until,
+        retries: 3,
+        onRetry: (error, retries) => {
+          this.log.warn(`Failed to run command [${retries} retries]: ${cmd}=${value}`);
+          if (error instanceof Error) {
+            this.log.warn(`Error: ${error.message}`);
+          }
+        },
+        onRecover: (retries) => {
+          this.log.info(`Recovered to run command [${retries} retries]: ${cmd}=${value}`);
+        },
+        onFail: (error) => {
+          this.log.error(`Failed to run command: ${cmd}=${value}`);
+          if (error instanceof Error) {
+            this.log.error(`Error: ${error.message}`);
+          }
+
+          if (oldStatus) {
+            this.log.debug(`Reverting ${cmd}`);
+            this.status = oldStatus;
+            this.statusUpdateListener?.();
+          }
+        },
+      });
+    };
+
+    if (until) {
+      return this.withRunQ(cmd, fn);
+    }
+
+    return fn();
   };
 
   private withIsUpdating = async <T>(fn: () => Promise<T>): Promise<void> => {
