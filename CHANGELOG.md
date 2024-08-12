@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.5.0...v1.6.0) (2024-08-12)
+
+
+### Features
+
+* retry until reach the expected state ([7a17877](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/7a17877a24ca69fd598ba653564c63503e7e9f11))
+
 # [1.5.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.4.0...v1.5.0) (2024-08-09)
 
 
