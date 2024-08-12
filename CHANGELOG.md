@@ -1,3 +1,10 @@
+# [1.7.0-beta.4](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.3...v1.7.0-beta.4) (2024-08-12)
+
+
+### Bug Fixes
+
+* only filter the rest of the q when the q has more than one items ([526c3a0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/526c3a0fbb3816be5ac3b72c58b6e2578ba6c394))
+
 # [1.7.0-beta.3](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.2...v1.7.0-beta.3) (2024-08-12)
 
 
