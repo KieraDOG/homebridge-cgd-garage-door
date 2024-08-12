@@ -1,3 +1,11 @@
+# [1.7.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.1...v1.7.0) (2024-08-12)
+
+
+### Features
+
+* introduce runQ to avoid switch flakiness when off and on are set together and conflict with retryUntil ([#4](https://github.com/KieraDOG/homebridge-cgd-garage-door/issues/4)) ([73787c5](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/73787c5a140fa24c8645beaa48fa9c8bf8eee601))
+* runQ release ([4cdb364](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/4cdb3644e60d955d32800891c2fa54f1b07c0176))
+
 # [1.7.0-beta.5](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0-beta.4...v1.7.0-beta.5) (2024-08-12)
 
 
