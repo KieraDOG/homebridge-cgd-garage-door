@@ -1,5 +1,8 @@
 # Homebridge Centurion Garage Doors
 
+[![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=for-the-badge&logoColor=%23FFFFFF&logo=homebridge)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
+
+
 [![Publish](https://github.com/KieraDOG/homebridge-cgd-garage-door/actions/workflows/publish.yml/badge.svg)](https://github.com/KieraDOG/homebridge-cgd-garage-door/actions/workflows/publish.yml)
 [![npm](https://img.shields.io/npm/v/homebridge-cgd-garage-door/latest?label=latest)](https://www.npmjs.com/package/homebridge-cgd-garage-door)
 [![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
