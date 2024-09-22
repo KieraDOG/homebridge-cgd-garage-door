@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.7.0...v1.8.0) (2024-09-22)
+
+
+### Features
+
+* homebridge verified ([5ee5ce0](https://github.com/KieraDOG/homebridge-cgd-garage-door/commit/5ee5ce032ca1764e7fcf3b31f818d3e7dc58017f))
+
 # [1.7.0](https://github.com/KieraDOG/homebridge-cgd-garage-door/compare/v1.6.1...v1.7.0) (2024-08-12)
 
 
